@@ -1,0 +1,41 @@
+{
+  "roles": {
+    "1": "デュエリスト",
+    "2": "イニシエーター",
+    "3": "センチネル",
+    "4": "コントローラー"
+  },
+  "agents": [
+    { "id": "jett",   "name_ja": "ジェット",   "role": 1, "enabled": true },
+    { "id": "raze",   "name_ja": "レイズ",     "role": 1, "enabled": true },
+    { "id": "phoenix",  "name_ja": "フェニックス",     "role": 1, "enabled": true },
+    { "id": "reyna",  "name_ja": "レイナ",     "role": 1, "enabled": true },
+    { "id": "yoru",  "name_ja": "ヨル",     "role": 1, "enabled": true },
+    { "id": "neon",  "name_ja": "ネオン",     "role": 1, "enabled": true },
+    { "id": "iso",  "name_ja": "アイソ",     "role": 1, "enabled": true },
+    { "id": "waylay",  "name_ja": "ウェイレイ",     "role": 1, "enabled": true },
+
+    { "id": "breach",   "name_ja": "ブリーチ",   "role": 2, "enabled": true },
+    { "id": "sova",   "name_ja": "ソーヴァ",   "role": 2, "enabled": true },
+    { "id": "skye",   "name_ja": "スカイ",   "role": 2, "enabled": true },
+    { "id": "kayo",   "name_ja": "KAY/O",   "role": 2, "enabled": true },
+    { "id": "fade",   "name_ja": "フェイド",   "role": 2, "enabled": true },
+    { "id": "gekko",   "name_ja": "ゲッコー",   "role": 2, "enabled": true },
+    { "id": "tejo",   "name_ja": "テホ",   "role": 2, "enabled": true },
+
+    { "id": "sage",   "name_ja": "セージ",     "role": 3, "enabled": true },
+    { "id": "cypher",   "name_ja": "サイファー",     "role": 3, "enabled": true },
+    { "id": "kj",     "name_ja": "キルジョイ", "role": 3, "enabled": true },
+    { "id": "chamber",   "name_ja": "チェンバー",     "role": 3, "enabled": true },
+    { "id": "deadlock",   "name_ja": "デッドロック",     "role": 3, "enabled": true },
+    { "id": "vyse",   "name_ja": "ヴァイス",     "role": 3, "enabled": true },
+    { "id": "veto",   "name_ja": "ヴィトー",     "role": 3, "enabled": true },
+
+    { "id": "brim",   "name_ja": "ブリムストーン", "role": 4, "enabled": true },
+    { "id": "viper",  "name_ja": "ヴァイパー",     "role": 4, "enabled": true },
+    { "id": "omen",   "name_ja": "オーメン",       "role": 4, "enabled": true },
+    { "id": "astra",   "name_ja": "アストラ",       "role": 4, "enabled": true },
+    { "id": "harbor",   "name_ja": "ハーバー",       "role": 4, "enabled": true },
+    { "id": "clove",   "name_ja": "クローブ",       "role": 4, "enabled": true }
+  ]
+}
