@@ -192,7 +192,7 @@ def _generate(mode: str, hard: bool, model_value: int, content: str | None) -> s
                 ],
                 reasoning={"effort": "low"},
                 text={"verbosity": "low"},
-                max_output_tokens=8000,
+                max_output_tokens=3000,
             )
             text = (response.output_text or "").strip()
         else:
