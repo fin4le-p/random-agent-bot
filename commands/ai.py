@@ -26,15 +26,15 @@ ai_group = app_commands.Group(
 )
 
 MODEL_CHOICES = [
-    app_commands.Choice(name="【1】 早いがワケワカラン作戦出てくる可能性あり（llama）", value=1),
-    app_commands.Choice(name="【2】 これ使えば間違いない（gpt-oss）", value=2),
-    app_commands.Choice(name="【3】 遅いが必ず動作する（gpt）", value=3),
+    app_commands.Choice(name="【1】 早いが回答がおかしくなるかも（llama）", value=1),
+    app_commands.Choice(name="【2】 速度も早くちょっとだけ優秀（gpt-oss）", value=2),
+    app_commands.Choice(name="【3】 遅いが必ず動作し優秀（gpt）", value=3),
 ]
 
 MODEL_MAP = {
     1: ("groq", "llama-3.1-8b-instant"),
     2: ("groq", "openai/gpt-oss-120b"),
-    3: ("openai", "gpt-5-nano"),
+    3: ("openai", "gpt-5-mini"),
 }
 
 TACTIC_RULES = """あなたは「VALORANT 戦術ジェネレーター」です。
@@ -183,19 +183,30 @@ def _generate(mode: str, hard: bool, model_value: int, content: str | None) -> s
     )
 
     try:
-        request_kwargs = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content},
-            ],
-        }
         if model.startswith("gpt-"):
-            request_kwargs["max_completion_tokens"] = 8000
+            response = client.responses.create(
+                model=model,
+                input=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+                reasoning={"effort": "low"},
+                text={"verbosity": "low"},
+                max_output_tokens=8000,
+            )
+            text = (response.output_text or "").strip()
         else:
+            request_kwargs = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+            }
             request_kwargs["temperature"] = 0.7
             request_kwargs["max_tokens"] = 2000
-        response = client.chat.completions.create(**request_kwargs)
+            response = client.chat.completions.create(**request_kwargs)
+            text = (response.choices[0].message.content or "").strip()
         #print(response.usage)
     except RateLimitError:
         raise RuntimeError("混雑中です。少し待ってから再実行してください。")
@@ -206,7 +217,6 @@ def _generate(mode: str, hard: bool, model_value: int, content: str | None) -> s
     except APIError:
         raise RuntimeError("APIエラーが発生しました。時間をおいて再試行してください。")
 
-    text = (response.choices[0].message.content or "").strip()
     text = _normalize_output(text)
 
     # 履歴更新
