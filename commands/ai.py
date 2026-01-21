@@ -156,12 +156,25 @@ def _build_system_prompt(mode: str, hard: bool) -> str:
     if mode == "tactic":
         prompt = TACTIC_RULES
         if hard:
-            prompt += "\nありえないくらい難しく調整してください。"
+            prompt += (
+                "\n【ハード専用ルール】"
+                "\n・2人以上の連携を必須にする"
+                "\n・同時進行の動きを必ず入れる"
+                "\n・フェイク/囮/逆サイドのいずれかを必ず含める"
+                "\n・10秒以内など短い時間制限を入れる"
+                "\n・失敗時のリスクを1文で明示する"
+            )
         return prompt
 
     prompt = PUNISH_RULES
     if hard:
-        prompt += "\nありえないくらい難しく、利敵にならない範囲に調整してください。"
+        prompt += (
+            "\n【ハード専用ルール】"
+            "\n・通常より厳しい制約を1つ以上入れる"
+            "\n・行動範囲/行動回数の制限を必ず含める"
+            "\n・短い時間制限を入れる"
+            "\n・失敗時のリスクを1文で明示する"
+        )
     return prompt
 
 def _generate(mode: str, hard: bool, model_value: int, content: str | None) -> str:
@@ -175,10 +188,25 @@ def _generate(mode: str, hard: bool, model_value: int, content: str | None) -> s
 
     # user prompt（毎回変える：seed混入 + 重複回避の明示）
     seed = _make_seed()
+    seed2 = _make_seed()
+    focus_pool = [
+        "情報取り",
+        "フェイク",
+        "逆サイド",
+        "ラッシュ",
+        "カウンター",
+        "遅延",
+    ]
+    tempo_pool = ["速攻", "中速", "遅め"]
+    focus = random.choice(focus_pool)
+    tempo = random.choice(tempo_pool)
     base = (content or "おまかせで生成してください。").strip()
     user_content = (
         f"{base}\n"
         f"#seed:{seed}\n"
+        f"#seed2:{seed2}\n"
+        f"#focus:{focus}\n"
+        f"#tempo:{tempo}\n"
         f"直近と同じ案は避けてください。"
     )
 
