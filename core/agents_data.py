@@ -7,6 +7,7 @@ AGENT_FILE = os.getenv("AGENT_FILE", "agents.json")
 
 ROLE_CONTROLLER = 4  # コントローラー
 
+
 class Agent:
     def __init__(self, id: str, name_ja: str, role: int, enabled: bool = True):
         self.id = id
@@ -14,11 +15,13 @@ class Agent:
         self.role = role
         self.enabled = enabled
 
+
 def _load_agents_raw() -> Dict[str, Any]:
     """agents.json を毎回読み込む（ファイル編集を即反映させる）。"""
     with open(AGENT_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
     return data
+
 
 def _load_agents() -> List[Agent]:
     data = _load_agents_raw()
@@ -35,7 +38,6 @@ def _load_agents() -> List[Agent]:
             )
     return agents
 
-# ===== 既存モード =====
 
 def get_default_agents() -> List[str]:
     """
@@ -51,7 +53,6 @@ def get_default_agents() -> List[str]:
     result: List[str] = []
     used_ids = set()
 
-    # ロールごと
     for role in range(1, 5):
         candidates = [a for a in agents if a.role == role and a.id not in used_ids]
         if candidates:
@@ -59,7 +60,6 @@ def get_default_agents() -> List[str]:
             result.append(picked.name_ja)
             used_ids.add(picked.id)
 
-    # 全体から1人
     remaining = [a for a in agents if a.id not in used_ids]
     if remaining:
         picked = random.choice(remaining)
@@ -68,6 +68,7 @@ def get_default_agents() -> List[str]:
 
     random.shuffle(result)
     return result[:5]
+
 
 def get_chaos_agents() -> List[str]:
     """カオスモード：ロール無視で全体から 5 人ランダム。"""
@@ -78,6 +79,7 @@ def get_chaos_agents() -> List[str]:
         random.shuffle(agents)
         return [a.name_ja for a in agents]
     return [a.name_ja for a in random.sample(agents, 5)]
+
 
 def get_hirano_agents() -> List[str]:
     """
@@ -91,24 +93,19 @@ def get_hirano_agents() -> List[str]:
         return []
 
     controllers = [a for a in agents if a.role == ROLE_CONTROLLER]
-    others = [a for a in agents if a.role != ROLE_CONTROLLER]
-
     result: List[str] = []
     used_ids = set()
 
-    # コントローラー 1人
     if controllers:
         ctrl = random.choice(controllers)
         result.append(ctrl.name_ja)
         used_ids.add(ctrl.id)
 
-    # 残り枠数
     remaining_slots = 5 - len(result)
     if remaining_slots <= 0:
         random.shuffle(result)
         return result[:5]
 
-    # その他から残りを選ぶ
     candidates = [a for a in agents if a.id not in used_ids]
     if len(candidates) <= remaining_slots:
         result.extend(a.name_ja for a in candidates)
@@ -117,6 +114,7 @@ def get_hirano_agents() -> List[str]:
 
     random.shuffle(result)
     return result[:5]
+
 
 def get_ban_agents(count: int = 2) -> List[str]:
     """

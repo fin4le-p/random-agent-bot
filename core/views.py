@@ -1,9 +1,7 @@
 import discord
-from discord import ui
 
-from agents_data import get_default_agents, get_chaos_agents, get_hirano_agents
+from core.agents_data import get_default_agents, get_chaos_agents, get_hirano_agents
 
-# ===== エージェントモード選択ボタン =====
 
 class AgentSelectJa(discord.ui.Button):
     def __init__(self, label: str, value: str, parent_view: "AgentSelectViewJa"):
@@ -18,7 +16,6 @@ class AgentSelectJa(discord.ui.Button):
         mode_title = ""
         color = discord.Color.default()
 
-        # VC メンバー取得
         if interaction.user.voice and interaction.user.voice.channel:
             channel = interaction.user.voice.channel
             members = channel.members
@@ -26,11 +23,9 @@ class AgentSelectJa(discord.ui.Button):
         else:
             user_names = []
 
-        # 5人未満なら PlayerX で補完
         while len(user_names) < 5:
             user_names.append(f"Player{len(user_names) + 1}")
 
-        # モード振り分け
         if self.value == "1":
             agents = get_default_agents()
             mode_title = "デフォルトモード"
@@ -47,7 +42,6 @@ class AgentSelectJa(discord.ui.Button):
             await interaction.followup.send("無効なモードが選択されました。")
             return
 
-        # Embed 作成
         embed = discord.Embed(
             title=mode_title,
             description=(
@@ -61,15 +55,11 @@ class AgentSelectJa(discord.ui.Button):
             player_name = user_names[i - 1]
             embed.add_field(name=player_name, value=agent_name, inline=False)
 
-        embed.set_footer(
-            text="注意：この構成は試合に勝つことを前提とした構成ではありません。"
-        )
+        embed.set_footer(text="注意：この構成は試合に勝つことを前提とした構成ではありません。")
 
-        # ボタン無効化
         for item in self.parent_view.children:
             item.disabled = True
 
-        # メッセージ更新
         try:
             await interaction.followup.edit_message(
                 message_id=interaction.message.id,

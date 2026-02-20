@@ -5,8 +5,10 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
-from commands.va import va_group
-from commands.ai import ai_group
+from commands.random import random_command
+from commands.punish import punish_command
+from commands.tactic import tactic_command
+from commands.vs import vs_group
 
 load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
@@ -24,9 +26,14 @@ intents.voice_states = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 async def setup_hook():
-    bot.tree.add_command(va_group)
-    bot.tree.add_command(ai_group)
-    print("va_group commands registered successfully.")
+    bot.tree.add_command(random_command)
+    print("random command registered successfully.")
+    bot.tree.add_command(punish_command)
+    print("punish command registered successfully.")
+    bot.tree.add_command(tactic_command)
+    print("tactic command registered successfully.")
+    bot.tree.add_command(vs_group)
+    print("vs_group commands registered successfully.")
 
 bot.setup_hook = setup_hook
 

@@ -1,11 +1,9 @@
 import os
 import random
-import time
 import re
+import time
 from collections import deque
 
-import discord
-from discord import app_commands
 from dotenv import load_dotenv
 from openai import OpenAI, APIError, APITimeoutError, BadRequestError, RateLimitError
 
@@ -19,17 +17,6 @@ groq_client = OpenAI(
     base_url="https://api.groq.com/openai/v1",
 )
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
-
-ai_group = app_commands.Group(
-    name="ai",
-    description="AI系コマンド群",
-)
-
-MODEL_CHOICES = [
-    app_commands.Choice(name="【1】 早いが回答がおかしくなるかも（llama）", value=1),
-    app_commands.Choice(name="【2】 速度も早くちょっとだけ優秀（gpt-oss）", value=2),
-    app_commands.Choice(name="【3】 遅いが必ず動作し優秀（gpt）", value=3),
-]
 
 MODEL_MAP = {
     1: ("groq", "llama-3.1-8b-instant"),
@@ -90,57 +77,40 @@ PUNISH_RULES = """あなたは「VALORANT 罰ゲームジェネレーター」�
 ・情報が足りない場合は必ず上の選択肢から補完して埋める
 """
 
-# ==============================
-# 重複回避（直近履歴）
-# ==============================
-# モードごとに直近タイトルを保持（最大10件）
 LAST_TITLES = {
     "tactic": deque(maxlen=10),
     "punish": deque(maxlen=10),
 }
 
+
 def _make_seed() -> str:
-    return f"{int(time.time()*1000)}-{random.randint(1000, 9999)}"
+    return f"{int(time.time() * 1000)}-{random.randint(1000, 9999)}"
+
 
 def _extract_title(text: str) -> str | None:
-    """
-    例:
-    1) タイトル: ○○○
-    もしくは1行圧縮:
-    1) タイトル: ○○○ 2) 詳細: ...
-    """
     if not text:
         return None
     m = re.search(r"1\)\s*タイトル:\s*([^\n/]+)", text)
     if m:
         title = m.group(1).strip()
-        # 次項目が同一行にあるなら切る
         title = re.split(r"\s+2\)\s*詳細:", title)[0].strip()
         return title[:40]
     return None
+
 
 def _add_banlist(mode: str, prompt: str) -> str:
     banned = list(LAST_TITLES.get(mode, []))[-5:]
     if not banned:
         return prompt
-    # タイトル縛りが一番効く
-    return (
-        prompt
-        + "\n【禁止】次のタイトルと同一は出さない: "
-        + " / ".join(banned)
-    )
+    return prompt + "\n【禁止】次のタイトルと同一は出さない: " + " / ".join(banned)
+
 
 def _normalize_output(text: str) -> str:
-    """
-    改行でも1行でも読みやすく整形。
-    1行圧縮のときは 2) 3) の前で改行を入れる。
-    """
     t = (text or "").strip()
-    # 1行圧縮を想定して 2) 3) の前で改行
     t = re.sub(r"\s+(?=[2-3]\)\s)", "\n", t)
-    # 余計なスペース整形
     t = re.sub(r"[ \t]{2,}", " ", t)
     return t.strip()
+
 
 def _select_client(model_value: int):
     provider, model = MODEL_MAP[model_value]
@@ -151,6 +121,7 @@ def _select_client(model_value: int):
     if not OPENAI_API_KEY:
         return None, None, "OPENAI_API_KEY が .env にありません。"
     return openai_client, model, None
+
 
 def _build_system_prompt(mode: str, hard: bool) -> str:
     if mode == "tactic":
@@ -177,26 +148,17 @@ def _build_system_prompt(mode: str, hard: bool) -> str:
         )
     return prompt
 
-def _generate(mode: str, hard: bool, model_value: int, content: str | None) -> str:
+
+def generate(mode: str, hard: bool, model_value: int, content: str | None) -> str:
     client, model, error = _select_client(model_value)
     if error:
         raise RuntimeError(error)
 
-    # system prompt
-    system_prompt = _build_system_prompt(mode, hard)
-    system_prompt = _add_banlist(mode, system_prompt)
+    system_prompt = _add_banlist(mode, _build_system_prompt(mode, hard))
 
-    # user prompt（毎回変える：seed混入 + 重複回避の明示）
     seed = _make_seed()
     seed2 = _make_seed()
-    focus_pool = [
-        "情報取り",
-        "フェイク",
-        "逆サイド",
-        "ラッシュ",
-        "カウンター",
-        "遅延",
-    ]
+    focus_pool = ["情報取り", "フェイク", "逆サイド", "ラッシュ", "カウンター", "遅延"]
     tempo_pool = ["速攻", "中速", "遅め"]
     focus = random.choice(focus_pool)
     tempo = random.choice(tempo_pool)
@@ -207,7 +169,7 @@ def _generate(mode: str, hard: bool, model_value: int, content: str | None) -> s
         f"#seed2:{seed2}\n"
         f"#focus:{focus}\n"
         f"#tempo:{tempo}\n"
-        f"直近と同じ案は避けてください。"
+        "直近と同じ案は避けてください。"
     )
 
     try:
@@ -224,18 +186,16 @@ def _generate(mode: str, hard: bool, model_value: int, content: str | None) -> s
             )
             text = (response.output_text or "").strip()
         else:
-            request_kwargs = {
-                "model": model,
-                "messages": [
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_content},
                 ],
-            }
-            request_kwargs["temperature"] = 0.7
-            request_kwargs["max_tokens"] = 2000
-            response = client.chat.completions.create(**request_kwargs)
+                temperature=0.7,
+                max_tokens=2000,
+            )
             text = (response.choices[0].message.content or "").strip()
-        #print(response.usage)
     except RateLimitError:
         raise RuntimeError("混雑中です。少し待ってから再実行してください。")
     except APITimeoutError:
@@ -246,81 +206,9 @@ def _generate(mode: str, hard: bool, model_value: int, content: str | None) -> s
         raise RuntimeError("APIエラーが発生しました。時間をおいて再試行してください。")
 
     text = _normalize_output(text)
-
-    # 履歴更新
     title = _extract_title(text)
     if title:
         LAST_TITLES[mode].append(title)
-
-    # 本文が空だったら（gpt-ossがやらかした場合の救済）
     if not text:
         return "（本文が空でした。別モデルを試して）"
-
     return text
-
-# ==============================
-# Commands
-# ==============================
-@ai_group.command(name="tactic", description="【開発中】AIによる戦術を考えてくれるモード")
-@app_commands.describe(model="使用するモデル、回答が変わったりします", content="状況や要望（例：バインド攻めで、オペが出てきて連敗中）")
-@app_commands.choices(model=MODEL_CHOICES)
-async def tactic_cmd(
-    interaction: discord.Interaction,
-    model: app_commands.Choice[int],
-    content: str,
-):
-    await interaction.response.defer()
-    try:
-        result = _generate("tactic", False, model.value, content)
-    except Exception as exc:
-        await interaction.followup.send(f"エラー: {exc}")
-        return
-    await interaction.followup.send(result)
-
-@ai_group.command(name="tactic_hard", description="【開発中】AIによる戦術を考えてくれるモード（ハード）")
-@app_commands.describe(model="使用するモデル、回答が変わったりします", content="状況や要望（例：バインド攻めで、オペが出てきて連敗中）")
-@app_commands.choices(model=MODEL_CHOICES)
-async def tactic_hard_cmd(
-    interaction: discord.Interaction,
-    model: app_commands.Choice[int],
-    content: str,
-):
-    await interaction.response.defer()
-    try:
-        result = _generate("tactic", True, model.value, content)
-    except Exception as exc:
-        await interaction.followup.send(f"エラー: {exc}")
-        return
-    await interaction.followup.send(result)
-
-@ai_group.command(name="punish", description="【開発中】AIによる罰ゲームを考えてくれるモード")
-@app_commands.describe(model="使用するモデル、回答が変わったりします", content="mapや使ってるキャラを入力")
-@app_commands.choices(model=MODEL_CHOICES)
-async def punish_cmd(
-    interaction: discord.Interaction,
-    model: app_commands.Choice[int],
-    content: str = "おまかせ",
-):
-    await interaction.response.defer()
-    try:
-        result = _generate("punish", False, model.value, content)
-    except Exception as exc:
-        await interaction.followup.send(f"エラー: {exc}")
-        return
-    await interaction.followup.send(result)
-
-@ai_group.command(name="punish_hard", description="【開発中】AIによる罰ゲームを考えてくれるモード（ハード）")
-@app_commands.describe(model="使用するモデル、回答が変わったりします", content="mapや使ってるキャラを入力")
-@app_commands.choices(model=MODEL_CHOICES)
-async def punish_hard_cmd(
-    interaction: discord.Interaction,
-    model: app_commands.Choice[int],
-    content: str = "おまかせ",
-):
-    await interaction.response.defer()
-    try:
-        result = _generate("punish", True, model.value, content)
-    except Exception as exc:
-        await interaction.followup.send(f"エラー: {exc}")
-        return
-    await interaction.followup.send(result)
