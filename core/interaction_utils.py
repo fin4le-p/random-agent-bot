@@ -2,19 +2,10 @@ import os
 
 import discord
 
-
 DEFAULT_TIMEOUT_SEC = 180
-DEFAULT_BOT_PERMISSIONS = 274878294080
-
-
-def build_bot_invite_url() -> str | None:
-    return (
-        "https://discord.com/oauth2/authorize?client_id=1308611315878858762&permissions=2147601408&integration_type=0&scope=bot+applications.commands"
-    )
-
 
 def bot_add_prompt_text() -> str:
-    invite_url = build_bot_invite_url()
+    invite_url = "https://discord.com/oauth2/authorize?client_id=1308611315878858762&permissions=2147601408&integration_type=0&scope=bot+applications.commands"
     if invite_url:
         return (
             "この機能は **Botとしてサーバーに追加** されていないと使えません。\n"
