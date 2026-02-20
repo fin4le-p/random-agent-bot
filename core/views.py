@@ -1,6 +1,7 @@
 import discord
 
 from core.agents_data import get_default_agents, get_chaos_agents, get_hirano_agents
+from core.interaction_utils import ExpiringOwnerView
 
 
 class AgentSelectJa(discord.ui.Button):
@@ -10,8 +11,6 @@ class AgentSelectJa(discord.ui.Button):
         self.parent_view = parent_view
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-
         agents = []
         mode_title = ""
         color = discord.Color.default()
@@ -39,7 +38,7 @@ class AgentSelectJa(discord.ui.Button):
             mode_title = "平野流モード"
             color = discord.Color.orange()
         else:
-            await interaction.followup.send("無効なモードが選択されました。")
+            await interaction.response.send_message("無効なモードが選択されました。", ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -56,23 +55,14 @@ class AgentSelectJa(discord.ui.Button):
             embed.add_field(name=player_name, value=agent_name, inline=False)
 
         embed.set_footer(text="注意：この構成は試合に勝つことを前提とした構成ではありません。")
-
-        for item in self.parent_view.children:
-            item.disabled = True
-
-        try:
-            await interaction.followup.edit_message(
-                message_id=interaction.message.id,
-                embed=embed,
-                view=self.parent_view,
-            )
-        except Exception as e:
-            print(f"Error updating message: {e}")
+        self.parent_view._disable_children()
+        await interaction.response.edit_message(embed=embed, view=self.parent_view)
+        self.parent_view.stop()
 
 
-class AgentSelectViewJa(discord.ui.View):
-    def __init__(self, timeout: float | None = 180):
-        super().__init__(timeout=timeout)
+class AgentSelectViewJa(ExpiringOwnerView):
+    def __init__(self, owner_id: int, timeout: float | None = 180):
+        super().__init__(owner_id=owner_id, timeout=timeout)
         self.add_item(AgentSelectJa("デフォルト", "1", self))
         self.add_item(AgentSelectJa("カオス", "2", self))
         self.add_item(AgentSelectJa("平野流", "3", self))

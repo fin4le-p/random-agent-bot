@@ -6,6 +6,7 @@ import discord
 from discord import app_commands
 
 from core.ai_engine import generate
+from core.interaction_utils import ExpiringOwnerView, bot_add_prompt_text, is_bot_member_in_guild
 
 PUNISH_FILE = os.getenv("PUNISH_FILE", "punishments.json")
 
@@ -52,9 +53,9 @@ def _build_vc_punish_embed(members: list[discord.Member]) -> discord.Embed | Non
     return embed
 
 
-class PunishModelSelectView(discord.ui.View):
-    def __init__(self, content: str, hard: bool):
-        super().__init__(timeout=300)
+class PunishModelSelectView(ExpiringOwnerView):
+    def __init__(self, owner_id: int, content: str, hard: bool):
+        super().__init__(owner_id=owner_id, timeout=300)
         self.content = content
         self.hard = hard
 
@@ -67,6 +68,13 @@ class PunishModelSelectView(discord.ui.View):
         title = "💥 Punish AI(HARD)" if self.hard else "💥 Punish AI"
         embed = discord.Embed(title=title, description=result, color=discord.Color.dark_orange())
         embed.set_footer(text=f"model={model_id} ({MODEL_LABELS[model_id]})")
+        self._disable_children()
+        try:
+            if interaction.message:
+                await interaction.message.edit(view=self)
+        except Exception:
+            pass
+        self.stop()
         await interaction.followup.send(embed=embed)
 
     @discord.ui.button(label="1", style=discord.ButtonStyle.secondary)
@@ -91,8 +99,9 @@ class PunishContentModal(discord.ui.Modal, title="罰ゲームの内容を入力
         max_length=400,
     )
 
-    def __init__(self, hard: bool):
+    def __init__(self, owner_id: int, hard: bool):
         super().__init__()
+        self.owner_id = owner_id
         self.hard = hard
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -105,18 +114,19 @@ class PunishContentModal(discord.ui.Modal, title="罰ゲームの内容を入力
         embed.add_field(name="入力内容", value=str(self.content), inline=False)
         model_lines = "\n".join(f"{k}. {v}" for k, v in MODEL_LABELS.items())
         embed.add_field(name="モデル一覧", value=model_lines, inline=False)
-        await interaction.response.send_message(
-            embed=embed,
-            view=PunishModelSelectView(content=str(self.content), hard=self.hard),
-        )
+        view = PunishModelSelectView(owner_id=self.owner_id, content=str(self.content), hard=self.hard)
+        await interaction.response.send_message(embed=embed, view=view)
+        await view.bind_to_response(interaction)
 
 
-class PunishMenuView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=300)
+class PunishMenuView(ExpiringOwnerView):
+    def __init__(self, owner_id: int):
+        super().__init__(owner_id=owner_id, timeout=300)
 
     @discord.ui.button(label="VC罰ゲーム", style=discord.ButtonStyle.primary)
     async def vc_button(self, interaction: discord.Interaction, _: discord.ui.Button):
+        if not is_bot_member_in_guild(interaction):
+            return await interaction.response.send_message(bot_add_prompt_text(), ephemeral=True)
         if not (interaction.user.voice and interaction.user.voice.channel):
             return await interaction.response.send_message(
                 "VC に参加してから実行してください。", ephemeral=True
@@ -136,11 +146,11 @@ class PunishMenuView(discord.ui.View):
 
     @discord.ui.button(label="AI罰ゲーム", style=discord.ButtonStyle.secondary)
     async def ai_button(self, interaction: discord.Interaction, _: discord.ui.Button):
-        await interaction.response.send_modal(PunishContentModal(hard=False))
+        await interaction.response.send_modal(PunishContentModal(owner_id=interaction.user.id, hard=False))
 
     @discord.ui.button(label="AI罰ゲーム(HARD)", style=discord.ButtonStyle.danger)
     async def ai_hard_button(self, interaction: discord.Interaction, _: discord.ui.Button):
-        await interaction.response.send_modal(PunishContentModal(hard=True))
+        await interaction.response.send_modal(PunishContentModal(owner_id=interaction.user.id, hard=True))
 
 
 @app_commands.command(name="punish", description="罰ゲームメニューを表示します。")
@@ -153,4 +163,11 @@ async def punish_command(interaction: discord.Interaction):
         ),
         color=discord.Color.blurple(),
     )
-    await interaction.response.send_message(embed=embed, view=PunishMenuView())
+    embed.add_field(
+        name="注意",
+        value="Appのみ追加の状態だとVC罰ゲームは使えません。Botとしてサーバーに追加してください。",
+        inline=False,
+    )
+    view = PunishMenuView(owner_id=interaction.user.id)
+    await interaction.response.send_message(embed=embed, view=view)
+    await view.bind_to_response(interaction)

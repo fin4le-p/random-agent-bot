@@ -6,6 +6,7 @@ import discord
 from discord import app_commands
 
 from core.agents_data import get_ban_agents
+from core.interaction_utils import ExpiringOwnerView, bot_add_prompt_text, is_bot_member_in_guild
 from core.views import AgentSelectViewJa
 
 MAP_FILE = os.getenv("MAP_FILE", "maps.json")
@@ -104,9 +105,9 @@ def _teams_embed(members: list[discord.Member]) -> discord.Embed:
     return embed
 
 
-class RandomMenuView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=300)
+class RandomMenuView(ExpiringOwnerView):
+    def __init__(self, owner_id: int):
+        super().__init__(owner_id=owner_id, timeout=300)
 
     @discord.ui.button(label="Agent", style=discord.ButtonStyle.primary)
     async def agent_button(self, interaction: discord.Interaction, _: discord.ui.Button):
@@ -122,7 +123,9 @@ class RandomMenuView(discord.ui.View):
             ),
             color=discord.Color.blue(),
         )
-        await interaction.response.send_message(embed=embed, view=AgentSelectViewJa())
+        view = AgentSelectViewJa(owner_id=interaction.user.id)
+        await interaction.response.send_message(embed=embed, view=view)
+        await view.bind_to_response(interaction)
 
     @discord.ui.button(label="Map", style=discord.ButtonStyle.success)
     async def map_button(self, interaction: discord.Interaction, _: discord.ui.Button):
@@ -135,6 +138,8 @@ class RandomMenuView(discord.ui.View):
 
     @discord.ui.button(label="Role Shuffle", style=discord.ButtonStyle.secondary)
     async def role_button(self, interaction: discord.Interaction, _: discord.ui.Button):
+        if not is_bot_member_in_guild(interaction):
+            return await interaction.response.send_message(bot_add_prompt_text(), ephemeral=True)
         if not (interaction.user.voice and interaction.user.voice.channel):
             return await interaction.response.send_message(
                 "VC に参加してから実行してください。", ephemeral=True
@@ -148,6 +153,8 @@ class RandomMenuView(discord.ui.View):
 
     @discord.ui.button(label="Teams", style=discord.ButtonStyle.secondary)
     async def teams_button(self, interaction: discord.Interaction, _: discord.ui.Button):
+        if not is_bot_member_in_guild(interaction):
+            return await interaction.response.send_message(bot_add_prompt_text(), ephemeral=True)
         if not (interaction.user.voice and interaction.user.voice.channel):
             return await interaction.response.send_message(
                 "VC に参加してから実行してください。", ephemeral=True
@@ -187,4 +194,11 @@ async def random_command(interaction: discord.Interaction):
     embed.add_field(name="Role Shuffle", value="VCメンバーへ役職をランダム割り当てします。", inline=False)
     embed.add_field(name="Teams", value="VCメンバーを2チームにランダム分けします。", inline=False)
     embed.add_field(name="BAN", value="ピック禁止エージェントをランダムで選びます。", inline=False)
-    await interaction.response.send_message(embed=embed, view=RandomMenuView())
+    embed.add_field(
+        name="注意",
+        value="Appのみ追加の状態だとVC系機能は使えません。Botとしてサーバーに追加してください。",
+        inline=False,
+    )
+    view = RandomMenuView(owner_id=interaction.user.id)
+    await interaction.response.send_message(embed=embed, view=view)
+    await view.bind_to_response(interaction)
