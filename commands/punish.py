@@ -72,7 +72,7 @@ class PunishModelSelectView(ExpiringOwnerView):
             return await interaction.followup.send(f"エラー: {exc}")
         title = "💥 Punish AI(HARD)" if self.hard else "💥 Punish AI"
         embed = discord.Embed(title=title, description=result, color=discord.Color.dark_orange())
-        embed.set_footer(text=f"model={model_id} ({MODEL_LABELS[model_id]})")
+        embed.set_footer(text=f"model={model_id}")
         self._disable_children()
         try:
             if interaction.message:

@@ -30,7 +30,7 @@ class TacticModelSelectView(ExpiringOwnerView):
             return await interaction.followup.send(f"エラー: {exc}")
         title = "🧠 Tactic(HARD)" if self.hard else "🧠 Tactic"
         embed = discord.Embed(title=title, description=result, color=discord.Color.dark_green())
-        embed.set_footer(text=f"model={model_id} ({MODEL_LABELS[model_id]})")
+        embed.set_footer(text=f"model={model_id}")
         self._disable_children()
         try:
             if interaction.message:
