@@ -62,7 +62,7 @@ class AgentSelectJa(discord.ui.Button):
 
 class AgentSelectViewJa(ExpiringOwnerView):
     def __init__(self, owner_id: int, timeout: float | None = 180):
-        super().__init__(owner_id=owner_id, timeout=timeout)
+        super().__init__(owner_id=owner_id, timeout=timeout, delete_on_timeout=True)
         self.add_item(AgentSelectJa("デフォルト", "1", self))
         self.add_item(AgentSelectJa("カオス", "2", self))
         self.add_item(AgentSelectJa("平野流", "3", self))

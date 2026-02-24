@@ -55,7 +55,12 @@ def _build_vc_punish_embed(members: list[discord.Member]) -> discord.Embed | Non
 
 class PunishModelSelectView(ExpiringOwnerView):
     def __init__(self, owner_id: int, content: str, hard: bool):
-        super().__init__(owner_id=owner_id, timeout=300)
+        super().__init__(
+            owner_id=owner_id,
+            timeout=300,
+            delete_on_use=True,
+            delete_on_timeout=True,
+        )
         self.content = content
         self.hard = hard
 
@@ -121,7 +126,12 @@ class PunishContentModal(discord.ui.Modal, title="罰ゲームの内容を入力
 
 class PunishMenuView(ExpiringOwnerView):
     def __init__(self, owner_id: int):
-        super().__init__(owner_id=owner_id, timeout=300)
+        super().__init__(
+            owner_id=owner_id,
+            timeout=300,
+            delete_on_use=True,
+            delete_on_timeout=True,
+        )
 
     @discord.ui.button(label="VC罰ゲーム", style=discord.ButtonStyle.primary)
     async def vc_button(self, interaction: discord.Interaction, _: discord.ui.Button):

@@ -13,7 +13,12 @@ MODEL_LABELS = {
 
 class TacticModelSelectView(ExpiringOwnerView):
     def __init__(self, owner_id: int, content: str, hard: bool):
-        super().__init__(owner_id=owner_id, timeout=300)
+        super().__init__(
+            owner_id=owner_id,
+            timeout=300,
+            delete_on_use=True,
+            delete_on_timeout=True,
+        )
         self.content = content
         self.hard = hard
 
@@ -79,7 +84,12 @@ class TacticContentModal(discord.ui.Modal, title="戦術の内容を入力"):
 
 class TacticModeView(ExpiringOwnerView):
     def __init__(self, owner_id: int):
-        super().__init__(owner_id=owner_id, timeout=300)
+        super().__init__(
+            owner_id=owner_id,
+            timeout=300,
+            delete_on_use=True,
+            delete_on_timeout=True,
+        )
 
     @discord.ui.button(label="通常", style=discord.ButtonStyle.primary)
     async def normal_button(self, interaction: discord.Interaction, _: discord.ui.Button):

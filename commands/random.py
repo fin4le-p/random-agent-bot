@@ -107,7 +107,12 @@ def _teams_embed(members: list[discord.Member]) -> discord.Embed:
 
 class RandomMenuView(ExpiringOwnerView):
     def __init__(self, owner_id: int):
-        super().__init__(owner_id=owner_id, timeout=300)
+        super().__init__(
+            owner_id=owner_id,
+            timeout=300,
+            delete_on_use=True,
+            delete_on_timeout=True,
+        )
 
     @discord.ui.button(label="Agent", style=discord.ButtonStyle.primary)
     async def agent_button(self, interaction: discord.Interaction, _: discord.ui.Button):
