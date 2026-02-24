@@ -11,6 +11,8 @@ class AgentSelectJa(discord.ui.Button):
         self.parent_view = parent_view
 
     async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
         agents = []
         mode_title = ""
         color = discord.Color.default()
@@ -56,13 +58,26 @@ class AgentSelectJa(discord.ui.Button):
 
         embed.set_footer(text="注意：この構成は試合に勝つことを前提とした構成ではありません。")
         self.parent_view._disable_children()
-        await interaction.response.edit_message(embed=embed, view=self.parent_view)
+        try:
+            await interaction.followup.edit_message(
+                message_id=interaction.message.id,
+                embed=embed,
+                view=self.parent_view,
+            )
+        except Exception as exc:
+            print(f"Error updating message: {exc}")
+            return
         self.parent_view.stop()
 
 
 class AgentSelectViewJa(ExpiringOwnerView):
     def __init__(self, owner_id: int, timeout: float | None = 180):
-        super().__init__(owner_id=owner_id, timeout=timeout, delete_on_timeout=True)
+        super().__init__(
+            owner_id=owner_id,
+            timeout=timeout,
+            single_use=False,
+            delete_on_timeout=True,
+        )
         self.add_item(AgentSelectJa("デフォルト", "1", self))
         self.add_item(AgentSelectJa("カオス", "2", self))
         self.add_item(AgentSelectJa("平野流", "3", self))
