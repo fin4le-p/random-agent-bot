@@ -187,7 +187,7 @@ class RandomMenuView(ExpiringOwnerView):
         await interaction.response.send_message(embed=embed)
 
 
-@app_commands.command(name="random", description="ランダム系機能のメニューを表示します。")
+@app_commands.command(name="random", description="ランダムで選択してくれる機能たち")
 async def random_command(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🎲 Random メニュー",
@@ -201,7 +201,7 @@ async def random_command(interaction: discord.Interaction):
     embed.add_field(name="BAN", value="ピック禁止エージェントをランダムで選びます。", inline=False)
     embed.add_field(
         name="注意",
-        value="Appのみ追加の状態だとVC系機能は使えません。Botとしてサーバーに追加してください。",
+        value="Appディレクトリからの追加だとVC系機能は使えません。Botとしてサーバーに追加してください。",
         inline=False,
     )
     view = RandomMenuView(owner_id=interaction.user.id)

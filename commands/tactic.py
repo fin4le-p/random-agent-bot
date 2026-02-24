@@ -100,7 +100,7 @@ class TacticModeView(ExpiringOwnerView):
         await interaction.response.send_modal(TacticContentModal(owner_id=interaction.user.id, hard=True))
 
 
-@app_commands.command(name="tactic", description="戦術生成メニューを表示します。")
+@app_commands.command(name="tactic", description="AIによる戦術・作成を生成できます")
 async def tactic_command(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🧠 tactic",

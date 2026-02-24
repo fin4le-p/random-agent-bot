@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from commands.random import random_command
 from commands.punish import punish_command
 from commands.tactic import tactic_command
+from commands.help import help_command
 from commands.vs import vs_group
 
 load_dotenv()
@@ -32,6 +33,8 @@ async def setup_hook():
     print("punish command registered successfully.")
     bot.tree.add_command(tactic_command)
     print("tactic command registered successfully.")
+    bot.tree.add_command(help_command)
+    print("help command registered successfully.")
     bot.tree.add_command(vs_group)
     print("vs_group commands registered successfully.")
 
