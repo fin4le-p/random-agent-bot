@@ -35,8 +35,6 @@ async def setup_hook():
     print("tactic command registered successfully.")
     bot.tree.add_command(help_command)
     print("help command registered successfully.")
-    bot.tree.add_command(vs_group)
-    print("vs_group commands registered successfully.")
 
 bot.setup_hook = setup_hook
 
