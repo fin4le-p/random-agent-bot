@@ -25,4 +25,11 @@ async def help_command(interaction: discord.Interaction):
         inline=False,
     )
     embed.set_footer(text="各コマンドはスラッシュで実行してください。")
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    view = discord.ui.View()
+    view.add_item(
+        discord.ui.Button(
+            label="詳細はHPをご確認ください",
+            url="https://random-agent.nakano6.com/",
+        )
+    )
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
