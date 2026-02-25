@@ -24,6 +24,11 @@ async def help_command(interaction: discord.Interaction):
         value="AI戦術メニュー（通常 / ハード）",
         inline=False,
     )
+    embed.add_field(
+        name="/riotcon",
+        value="Riot連携メニュー（未連携なら連携案内、連携済みなら機能選択）",
+        inline=False,
+    )
     embed.set_footer(text="各コマンドはスラッシュで実行してください。")
     view = discord.ui.View()
     view.add_item(

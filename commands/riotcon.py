@@ -104,6 +104,14 @@ def _build_linked_status_text(status_json: dict) -> str:
     return msg
 
 
+def _riot_id_from_status(status_json: dict) -> str:
+    gn = status_json.get("riot_game_name") or ""
+    tl = status_json.get("riot_tag_line") or ""
+    if gn and tl:
+        return f"{gn}#{tl}"
+    return "Unknown"
+
+
 class RiotConMenuView(ExpiringOwnerView):
     def __init__(self, owner_id: int):
         super().__init__(
@@ -270,7 +278,8 @@ async def riotcon_command(interaction: discord.Interaction):
         ),
         color=discord.Color.blurple(),
     )
-    embed.add_field(name="直近試合（vs me）", value="Riot疎通確認 + 直近5試合の戦績を表示します。", inline=False)
+    embed.add_field(name="認証中 Riot ID", value=f"`{_riot_id_from_status(j)}`", inline=False)
+    embed.add_field(name="直近試合", value="Riot疎通確認 + 直近5試合の戦績を表示します。", inline=False)
 
     view = RiotConMenuView(owner_id=interaction.user.id)
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
