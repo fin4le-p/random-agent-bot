@@ -32,4 +32,4 @@ async def help_command(interaction: discord.Interaction):
             url="https://random-agent.nakano6.com/",
         )
     )
-    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
