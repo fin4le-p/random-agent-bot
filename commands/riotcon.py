@@ -94,22 +94,14 @@ async def _ensure_linked_or_prompt(interaction: discord.Interaction, *, use_foll
 
 
 def _build_linked_status_text(status_json: dict) -> str:
-    msg = "✅ 連携済みです"
+    msg = "✅ 連携RiotID"
     gn = status_json.get("riot_game_name") or ""
     tl = status_json.get("riot_tag_line") or ""
     if gn and tl:
-        msg += f"\nRiot: `{gn}#{tl}`"
-    if status_json.get("riot_puuid"):
-        msg += f"\nPUUID: `{str(status_json.get('riot_puuid'))[:8]}...`"
+        msg += f"\n{gn}#{tl}"
+    else:
+        msg += "\nUnknown"
     return msg
-
-
-def _riot_id_from_status(status_json: dict) -> str:
-    gn = status_json.get("riot_game_name") or ""
-    tl = status_json.get("riot_tag_line") or ""
-    if gn and tl:
-        return f"{gn}#{tl}"
-    return "Unknown"
 
 
 class RiotConMenuView(ExpiringOwnerView):
@@ -271,14 +263,10 @@ async def riotcon_command(interaction: discord.Interaction):
         return await _send_link_prompt(interaction, use_followup=False)
 
     embed = discord.Embed(
-        title="Riot連携メニュー",
-        description=(
-            f"{_build_linked_status_text(j)}\n\n"
-            "下のボタンから実行する機能を選択してください。"
-        ),
+        title="Riot連携機能",
+        description=_build_linked_status_text(j),
         color=discord.Color.blurple(),
     )
-    embed.add_field(name="認証中 Riot ID", value=f"`{_riot_id_from_status(j)}`", inline=False)
     embed.add_field(name="直近試合", value="Riot疎通確認 + 直近5試合の戦績を表示します。", inline=False)
 
     view = RiotConMenuView(owner_id=interaction.user.id)
