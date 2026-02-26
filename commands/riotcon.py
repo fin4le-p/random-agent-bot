@@ -1,3 +1,4 @@
+# commands/riotcon.py  (あなたが貼ってくれた側)
 import os
 
 import aiohttp
@@ -125,7 +126,7 @@ class RiotConMenuView(ExpiringOwnerView):
             final_ephemeral=False,
         )
 
-    @discord.ui.button(label="Match Highlight(raw)", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="直前の試合ハイライト", style=discord.ButtonStyle.secondary)
     async def match_highlight_button(self, interaction: discord.Interaction, _: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
         await run_match_highlight(
@@ -159,7 +160,7 @@ async def riotcon_command(interaction: discord.Interaction):
         color=discord.Color.blurple(),
     )
     embed.add_field(name="直近試合", value="Riot疎通確認 + 直近5試合の戦績を表示します。", inline=False)
-    embed.add_field(name="Match Highlight(raw)", value="APIレスポンスを整形せずそのまま表示します。", inline=False)
+    embed.add_field(name="Match Highlight", value="試合サマリーを整形し、LLMで生成したストーリーを表示します。", inline=False)
 
     view = RiotConMenuView(owner_id=interaction.user.id)
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
