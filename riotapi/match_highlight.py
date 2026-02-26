@@ -35,5 +35,5 @@ async def run_match_highlight(
     if len(wrapped) <= 1900:
         return await interaction.followup.send(wrapped, ephemeral=final_ephemeral)
 
-    truncated = output[:11700] + "\n...（長いため省略）"
+    truncated = output
     return await interaction.followup.send(f"```json\n{truncated}\n```", ephemeral=final_ephemeral)
