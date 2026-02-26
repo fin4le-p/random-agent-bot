@@ -1,9 +1,11 @@
 import json
+import logging
 from typing import Awaitable, Callable
 
 import discord
 
 PostJsonFunc = Callable[[str, dict, int], Awaitable[tuple[int, dict, str]]]
+logger = logging.getLogger(__name__)
 
 
 def _format_raw_response(status_code: int, json_body: dict, raw_text: str) -> str:
@@ -31,9 +33,10 @@ async def run_match_highlight(
     )
 
     output = _format_raw_response(status_code, j, text)
+    logger.info("match-highlight full response:\n%s", output)
     wrapped = f"```json\n{output}\n```"
     if len(wrapped) <= 1900:
         return await interaction.followup.send(wrapped, ephemeral=final_ephemeral)
 
-    truncated = output
+    truncated = output[:1700] + "\n...（長いため省略）"
     return await interaction.followup.send(f"```json\n{truncated}\n```", ephemeral=final_ephemeral)
