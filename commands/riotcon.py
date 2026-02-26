@@ -5,7 +5,7 @@ import discord
 from discord import app_commands
 
 from core.interaction_utils import ExpiringOwnerView
-from riotapi import run_recent_matches
+from riotapi import run_match_highlight, run_recent_matches
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://api:8000").rstrip("/")
 INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY")
@@ -125,6 +125,16 @@ class RiotConMenuView(ExpiringOwnerView):
             final_ephemeral=False,
         )
 
+    @discord.ui.button(label="Match Highlight(raw)", style=discord.ButtonStyle.secondary)
+    async def match_highlight_button(self, interaction: discord.Interaction, _: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        await run_match_highlight(
+            interaction=interaction,
+            post_json=_post_json,
+            internal_api_key=INTERNAL_API_KEY,
+            final_ephemeral=False,
+        )
+
 
 @app_commands.command(name="riotcon", description="Riot連携メニュー")
 async def riotcon_command(interaction: discord.Interaction):
@@ -149,6 +159,7 @@ async def riotcon_command(interaction: discord.Interaction):
         color=discord.Color.blurple(),
     )
     embed.add_field(name="直近試合", value="Riot疎通確認 + 直近5試合の戦績を表示します。", inline=False)
+    embed.add_field(name="Match Highlight(raw)", value="APIレスポンスを整形せずそのまま表示します。", inline=False)
 
     view = RiotConMenuView(owner_id=interaction.user.id)
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
