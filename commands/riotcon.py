@@ -160,7 +160,7 @@ async def riotcon_command(interaction: discord.Interaction):
         color=discord.Color.blurple(),
     )
     embed.add_field(name="直近試合", value="Riot疎通確認 + 直近5試合の戦績を表示します。", inline=False)
-    embed.add_field(name="Match Highlight", value="試合サマリーを整形し、LLMで生成したストーリーを表示します。", inline=False)
+    embed.add_field(name="直近一試合のハイライト", value="試合サマリーを整形し、LLMで生成したストーリーを表示します。（コンペのみ）", inline=False)
 
     view = RiotConMenuView(owner_id=interaction.user.id)
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
