@@ -104,7 +104,7 @@ class RiotConMenuView(ExpiringOwnerView):
         )
 
 
-@app_commands.command(name="riotcon", description="Riot連携メニュー※この機能は開発段階です")
+@app_commands.command(name="riotcon", description="Riot連携メニュー")
 async def riotcon_command(interaction: discord.Interaction):
     if not INTERNAL_API_KEY:
         return await interaction.response.send_message("サーバー設定エラー: INTERNAL_API_KEY未設定", ephemeral=True)
@@ -126,7 +126,7 @@ async def riotcon_command(interaction: discord.Interaction):
         description=_build_linked_status_text(j),
         color=discord.Color.blurple(),
     )
-    embed.add_field(name="直近一試合のハイライト", value="試合サマリーを整形し、LLMで生成したストーリーを表示します。（コンペのみ）", inline=False)
+    embed.add_field(name="直近一試合のハイライト", value="試合サマリーを整形しストーリーを表示します。（コンペのみ）※この機能は開発段階です", inline=False)
 
     view = RiotConMenuView(owner_id=interaction.user.id)
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
