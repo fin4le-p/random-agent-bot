@@ -523,7 +523,6 @@ def _build_flow_embeds(section_title: str, text: str, *, emoji: str) -> list[dis
 
     embeds = _build_field_card_embeds(
         title=f"{emoji} {section_title}",
-        description="流れが動いた場面を見やすく分割しています。",
         entries=blocks,
         label_fn=lambda i, j: f"見どころ {i}" if j == 1 else f"見どころ {i} (続き{j})",
         color=STORY_COLOR,
@@ -550,8 +549,7 @@ def _build_close_embeds(text: str) -> list[discord.Embed]:
 
     if len(comments) >= 2:
         embeds = _build_field_card_embeds(
-            title="🎤 配信用コメント",
-            description="締めにそのまま使いやすい形で分けています。",
+            title="🎤 みんなに向けてコメント",
             entries=[comments[0], comments[1]],
             label_fn=lambda i, j: ("強気" if i == 1 else "おふざけ") if j == 1 else (f"{'強気' if i == 1 else 'おふざけ'} (続き{j})"),
             color=STORY_COLOR,
@@ -590,7 +588,7 @@ def _build_story_fallback_embeds(story_text: str) -> list[discord.Embed]:
 
     embeds = _build_field_card_embeds(
         title="📖 ストーリー（フォールバック）",
-        description="区切り出力が崩れたため、安全な表示モードで出しています。",
+        description="出力が崩れたため、安全な表示モードで出しています。",
         entries=blocks,
         label_fn=lambda i, j: f"断片 {i}" if j == 1 else f"断片 {i} (続き{j})",
         color=STORY_COLOR,
