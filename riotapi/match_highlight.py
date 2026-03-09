@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+from itertools import islice
 from typing import Awaitable, Callable
 
 import discord
@@ -21,6 +22,7 @@ EMBED_FIELD_VALUE_LIMIT = 1000          # Discord field value max=1024
 EMBED_DESCRIPTION_LIMIT = 3800          # Discord description max=4096
 EMBED_TOTAL_SOFT_LIMIT = 5800           # Discord embed total max=6000
 EMBED_MAX_FIELDS = 25
+EMBEDS_PER_MESSAGE = 10                # Discord message embeds max=10
 
 SUMMARY_COLOR = 0x5865F2
 STORY_COLOR = 0x2B2D31
@@ -179,15 +181,6 @@ def _split_message(text: str, chunk_size: int = 1800) -> list[str]:
     if current:
         chunks.append(current)
     return chunks
-
-
-async def _safe_delete_message(message: discord.Message | None):
-    if message is None:
-        return
-    try:
-        await message.delete()
-    except Exception:
-        pass
 
 
 def _truncate(text: str, max_len: int) -> str:
@@ -391,6 +384,17 @@ def _build_progress_embed() -> discord.Embed:
     return embed
 
 
+def _build_public_error_notice_embed() -> discord.Embed:
+    return discord.Embed(
+        title="⚠️ Match Highlight",
+        description=(
+            "ハイライト生成中にエラーが発生しました。\n"
+            "詳細は実行者にのみ表示しています。"
+        ),
+        color=ERROR_COLOR,
+    )
+
+
 def _build_status_error_embeds(status_code: int, json_body: dict, raw_text: str) -> list[discord.Embed]:
     output = _format_raw_response(status_code, json_body, raw_text)
     embed = discord.Embed(
@@ -408,7 +412,7 @@ def _build_status_error_embeds(status_code: int, json_body: dict, raw_text: str)
         field_name = "レスポンス" if i == 1 else f"レスポンス (続き{i})"
         value = f"```json\n{chunk}\n```"
         if len(value) > EMBED_FIELD_VALUE_LIMIT:
-            value = chunk  # codeblockが長すぎる場合の保険
+            value = chunk
         if not _can_add_field(current, name=field_name, value=value):
             current = _new_embed("❌ Match Highlight Error (続き)", color=ERROR_COLOR)
             embeds.append(current)
@@ -571,7 +575,6 @@ def _build_story_fallback_embeds(story_text: str) -> list[discord.Embed]:
     raw_text = (story_text or "").strip() or "（生成結果が空でした）"
     blocks = _extract_blocks(raw_text, max_items=8, sentences_per_block=2)
 
-    # ほぼ分解できなかった場合は description chunk に退避
     if len(blocks) <= 1 and len(raw_text) > EMBED_FIELD_VALUE_LIMIT:
         raw_chunks = _chunk_text(raw_text, EMBED_DESCRIPTION_LIMIT)
         embeds: list[discord.Embed] = []
@@ -608,6 +611,9 @@ def _build_story_embeds(story_text: str) -> list[discord.Embed]:
     close_text = (parts[5] or "").strip() or "（空）"
 
     embeds: list[discord.Embed] = []
+    embeds.extend(_build_summary_embeds(riot_id="", discord_message=""))  # placeholder avoided below
+    embeds.clear()
+
     embeds.extend(_build_story_intro_embeds(title_text, digest_text))
     embeds.extend(_build_flow_embeds("前半の流れ", first_half_text, emoji="🟦"))
     embeds.extend(_build_flow_embeds("後半の流れ", second_half_text, emoji="🟥"))
@@ -617,14 +623,52 @@ def _build_story_embeds(story_text: str) -> list[discord.Embed]:
     return _paginate_embeds(embeds, "Story")
 
 
-async def _send_embeds(
+def _batched(seq: list[discord.Embed], size: int = EMBEDS_PER_MESSAGE):
+    it = iter(seq)
+    while True:
+        batch = list(islice(it, size))
+        if not batch:
+            break
+        yield batch
+
+
+async def _send_embed_batches(
     *,
     interaction: discord.Interaction,
     embeds: list[discord.Embed],
     ephemeral: bool,
 ):
-    for embed in embeds:
-        await interaction.followup.send(embed=embed, ephemeral=ephemeral)
+    for batch in _batched(embeds, EMBEDS_PER_MESSAGE):
+        await interaction.followup.send(embeds=batch, ephemeral=ephemeral)
+
+
+async def _edit_message_and_send_rest(
+    *,
+    message: discord.WebhookMessage,
+    interaction: discord.Interaction,
+    embeds: list[discord.Embed],
+    ephemeral: bool,
+):
+    if not embeds:
+        embeds = [
+            discord.Embed(
+                title="Match Highlight",
+                description="表示できるデータがありませんでした。",
+                color=STORY_COLOR,
+            )
+        ]
+
+    first_batch = embeds[:EMBEDS_PER_MESSAGE]
+    rest = embeds[EMBEDS_PER_MESSAGE:]
+
+    await message.edit(embeds=first_batch)
+
+    if rest:
+        await _send_embed_batches(
+            interaction=interaction,
+            embeds=rest,
+            ephemeral=ephemeral,
+        )
 
 
 async def run_match_highlight(
@@ -656,19 +700,30 @@ async def run_match_highlight(
 
     if status_code != 200:
         logger.info("match-highlight error response:\n%s", _format_raw_response(status_code, j, text))
-        await _safe_delete_message(progress_message)
-        return await _send_embeds(
+        error_embeds = _build_status_error_embeds(status_code, j, text)
+
+        if final_ephemeral:
+            return await _edit_message_and_send_rest(
+                message=progress_message,
+                interaction=interaction,
+                embeds=error_embeds,
+                ephemeral=True,
+            )
+
+        await progress_message.edit(embed=_build_public_error_notice_embed())
+        return await _send_embed_batches(
             interaction=interaction,
-            embeds=_build_status_error_embeds(status_code, j, text),
+            embeds=error_embeds,
             ephemeral=True,
         )
 
     if not (j or {}).get("ok", False):
         logger.info("match-highlight business error response:\n%s", json.dumps(j or {}, ensure_ascii=False))
-        await _safe_delete_message(progress_message)
-        return await _send_embeds(
+        business_error_embeds = _build_business_error_embeds(j or {})
+        return await _edit_message_and_send_rest(
+            message=progress_message,
             interaction=interaction,
-            embeds=_build_business_error_embeds(j or {}),
+            embeds=business_error_embeds,
             ephemeral=final_ephemeral,
         )
 
@@ -684,15 +739,11 @@ async def run_match_highlight(
     )
     story_embeds = _build_story_embeds(raw_story)
 
-    await _safe_delete_message(progress_message)
+    all_embeds = summary_embeds + story_embeds
 
-    await _send_embeds(
+    return await _edit_message_and_send_rest(
+        message=progress_message,
         interaction=interaction,
-        embeds=summary_embeds,
-        ephemeral=final_ephemeral,
-    )
-    await _send_embeds(
-        interaction=interaction,
-        embeds=story_embeds,
+        embeds=all_embeds,
         ephemeral=final_ephemeral,
     )
