@@ -6,7 +6,7 @@ import discord
 from discord import app_commands
 
 from core.interaction_utils import ExpiringOwnerView
-from riotapi import run_match_highlight, run_recent_matches
+from riotapi import run_match_highlight
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://api:8000").rstrip("/")
 INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY")
@@ -73,28 +73,6 @@ async def _send_link_prompt(interaction: discord.Interaction, *, use_followup: b
         )
 
 
-async def _ensure_linked_or_prompt(interaction: discord.Interaction, *, use_followup: bool = False) -> bool:
-    status_code, j, _ = await _post_json(
-        "/internal/rso/status",
-        {"discord_user_id": str(interaction.user.id)},
-        timeout_sec=10,
-    )
-
-    if status_code != 200:
-        msg = f"エラー(status): {status_code} {j}"
-        if use_followup:
-            await interaction.followup.send(msg, ephemeral=True)
-        else:
-            await interaction.response.send_message(msg, ephemeral=True)
-        return False
-
-    if j.get("linked"):
-        return True
-
-    await _send_link_prompt(interaction, use_followup=use_followup)
-    return False
-
-
 def _build_linked_status_text(status_json: dict) -> str:
     msg = "✅ 連携してるRiotID"
     gn = status_json.get("riot_game_name") or ""
@@ -115,18 +93,7 @@ class RiotConMenuView(ExpiringOwnerView):
             delete_on_timeout=True,
         )
 
-    @discord.ui.button(label="直近試合", style=discord.ButtonStyle.primary)
-    async def recent_matches_button(self, interaction: discord.Interaction, _: discord.ui.Button):
-        await interaction.response.defer(ephemeral=True)
-        await run_recent_matches(
-            interaction=interaction,
-            post_json=_post_json,
-            ensure_linked_or_prompt=_ensure_linked_or_prompt,
-            internal_api_key=INTERNAL_API_KEY,
-            final_ephemeral=False,
-        )
-
-    @discord.ui.button(label="直前の試合ハイライト", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="直前の試合ハイライト", style=discord.ButtonStyle.primary)
     async def match_highlight_button(self, interaction: discord.Interaction, _: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
         await run_match_highlight(
@@ -137,7 +104,7 @@ class RiotConMenuView(ExpiringOwnerView):
         )
 
 
-@app_commands.command(name="riotcon", description="Riot連携メニュー")
+@app_commands.command(name="riotcon", description="Riot連携メニュー※この機能は開発段階です")
 async def riotcon_command(interaction: discord.Interaction):
     if not INTERNAL_API_KEY:
         return await interaction.response.send_message("サーバー設定エラー: INTERNAL_API_KEY未設定", ephemeral=True)
@@ -159,7 +126,6 @@ async def riotcon_command(interaction: discord.Interaction):
         description=_build_linked_status_text(j),
         color=discord.Color.blurple(),
     )
-    embed.add_field(name="直近試合", value="Riot疎通確認 + 直近5試合の戦績を表示します。", inline=False)
     embed.add_field(name="直近一試合のハイライト", value="試合サマリーを整形し、LLMで生成したストーリーを表示します。（コンペのみ）", inline=False)
 
     view = RiotConMenuView(owner_id=interaction.user.id)

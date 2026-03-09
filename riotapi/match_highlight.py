@@ -15,20 +15,29 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 MATCH_HIGHLIGHT_MODEL = os.getenv("MATCH_HIGHLIGHT_MODEL", "gpt-5-mini")
 openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
+# --- Discord embed safe limits (conservative) ---
+EMBED_FIELD_VALUE_LIMIT = 1000          # Discord field value: max 1024
+EMBED_DESCRIPTION_LIMIT = 3800          # Discord description: max 4096
+EMBED_TOTAL_SOFT_LIMIT = 5800           # Discord total embed chars: max 6000
+EMBED_MAX_FIELDS = 25
+
+SUMMARY_COLOR = 0x5865F2
+STORY_COLOR = 0x2B2D31
+
 # --- Story prompt (stable delimiter output; headings are added by app, not by LLM) ---
 STORY_PROMPT = """あなたはValorant配信者向けの「試合ストーリー脚本家」です。
 入力は1試合分の統計とラウンドごとの個人成績です。
 配信で盛り上がるように、試合の流れが頭に入る“物語＋実況”を日本語で作ってください。
 
 【最重要ルール】
-- 出力は必ず「7パート」を順番通りに出力すること。
+- 出力は必ず「6パート」を順番通りに出力すること。
 - 各パートは必ず区切り行「---」で区切ること（区切り行はちょうど3文字のハイフン×3のみ）。
 - 見出しラベル（例:「タイトル:」「1)」など）は一切書かない。中身だけを書く。
 - ユーザーが理解できないメタ発言を禁止（例:「要確認」「summary」「JSON」「データ上」「根拠」「ログ」「推測」など）。
 - 事実にない情報（武器名/エージェント名/サイト名/スキル/アルティ等）は書かない（曖昧表現で逃げるのも禁止）。
 - 数字は入力JSONにあるものだけ。無い項目は書かない（0扱いで捏造もしない）。
 
-【7パートの内容（順番固定）】
+【6パートの内容（順番固定）】
 パート1: タイトル（1行・煽り系）
 ---
 パート2: 30秒ダイジェスト（3〜5文）
@@ -40,9 +49,6 @@ STORY_PROMPT = """あなたはValorant配信者向けの「試合ストーリー
 パート5: MVPハイライト（ベスト3。各2〜3文）
 ---
 パート6: 締めコメント案（強気/おふざけ の2本。各1〜2文）
----
-パート7: 数字で見る今日（K/D, ACS, HS率, FB-FD, マルチキル, 最大ダメージR を箇条書き）
-  - FB-FDは入力に数があるときのみ「FB-FD: x-y」で出す。曖昧な注釈は禁止。
 
 【重要ラウンド抽出ルール】
 次のいずれかに当てはまるラウンドを優先：
@@ -65,32 +71,11 @@ def _format_raw_response(status_code: int, json_body: dict, raw_text: str) -> st
     return f"status={status_code}\n{body_text}"
 
 
-def _format_discord_message(discord_message: str) -> str:
-    """
-    API側の discord_message をDiscord表示用に整形
-    - 1行目を太字タイトル
-    - 以降は箇条書き
-    """
+def _parse_discord_message(discord_message: str) -> tuple[str, list[str]]:
     lines = [line.strip() for line in (discord_message or "").splitlines() if line.strip()]
     if not lines:
-        return "（discord_message が空です）"
-
-    title = lines[0]
-    body = [f"- {line}" for line in lines[1:]]
-    if not body:
-        body = ["- 詳細データなし"]
-    return f"**{title}**\n" + "\n".join(body)
-
-
-def _format_meta_info(riot_id: str, region: str, game_start_at_jst: str | None) -> str:
-    lines = []
-    if riot_id:
-        lines.append(f"RiotID: `{riot_id}`")
-    if region:
-        lines.append(f"Region: `{region}`")
-    if game_start_at_jst:
-        lines.append(f"試合開始(JST): `{game_start_at_jst}`")
-    return "\n".join(lines)
+        return "試合サマリー", ["詳細データなし"]
+    return lines[0], lines[1:] or ["詳細データなし"]
 
 
 def _format_business_error(j: dict) -> str:
@@ -126,7 +111,7 @@ def _extract_response_text(response) -> str:
 
 def _parse_story_sections(story_text: str) -> list[str]:
     """
-    LLMが `---` 区切りで出した7パートを抽出する。
+    LLMが `---` 区切りで出した6パートを抽出する。
     崩れたときでも落ちないようにフォールバックする。
     """
     t = (story_text or "").strip()
@@ -141,37 +126,6 @@ def _parse_story_sections(story_text: str) -> list[str]:
 
     parts = [p for p in parts if p]
     return parts
-
-
-def _format_story_for_discord(story_text: str) -> str:
-    """
-    7パートをDiscord向けに見出し付きで整形する。
-    LLMには見出しを書かせないので、ここで確実に付ける。
-    """
-    parts = _parse_story_sections(story_text)
-
-    if len(parts) < 7:
-        # フォーマットが崩れた場合は、そのまま出す（最低限）
-        return story_text.strip() or "（生成結果が空でした）"
-
-    title, digest, first_half, second_half, mvp, ending, numbers = parts[:7]
-
-    return (
-        "【タイトル】\n"
-        f"{title}\n\n"
-        "【30秒ダイジェスト】\n"
-        f"{digest}\n\n"
-        "【前半】\n"
-        f"{first_half}\n\n"
-        "【後半】\n"
-        f"{second_half}\n\n"
-        "【MVPハイライト】\n"
-        f"{mvp}\n\n"
-        "【締め】\n"
-        f"{ending}\n\n"
-        "【数字で見る今日】\n"
-        f"{numbers}"
-    )
 
 
 def _generate_story_from_payload(llm_payload) -> str:
@@ -190,16 +144,14 @@ def _generate_story_from_payload(llm_payload) -> str:
                 {
                     "role": "user",
                     "content": (
-                        "次のJSONを元に、上のルール通りに7パートを `---` 区切りで出力してください。\n"
+                        "次のJSONを元に、上のルール通りに6パートを `---` 区切りで出力してください。\n"
                         f"```json\n{payload_text}\n```"
                     ),
                 },
             ],
-            # ここは軽めでOK（構造化と実況テンションが主）
             reasoning={"effort": "minimal"},
             text={"verbosity": "low"},
-            # MAX OUTPUTは上げてOKとのことなので増やす（Discord側はsplitする）
-            max_output_tokens=3000,
+            max_output_tokens=2000,
         )
         story = _extract_response_text(response)
         return story or "（生成結果が空でした）"
@@ -239,6 +191,187 @@ def _split_message(text: str, chunk_size: int = 1800) -> list[str]:
     return chunks
 
 
+async def _safe_delete_message(message: discord.Message | None):
+    if message is None:
+        return
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+
+def _chunk_text(text: str, max_len: int) -> list[str]:
+    """
+    改行優先で安全にテキスト分割する。
+    """
+    text = (text or "").strip()
+    if not text:
+        return ["（空）"]
+
+    if len(text) <= max_len:
+        return [text]
+
+    chunks: list[str] = []
+    current = ""
+
+    for line in text.splitlines(keepends=True):
+        if len(current) + len(line) <= max_len:
+            current += line
+            continue
+
+        if current:
+            chunks.append(current.rstrip())
+
+        if len(line) <= max_len:
+            current = line
+        else:
+            for i in range(0, len(line), max_len):
+                part = line[i : i + max_len].rstrip()
+                if part:
+                    chunks.append(part)
+            current = ""
+
+    if current:
+        chunks.append(current.rstrip())
+
+    return chunks or ["（空）"]
+
+
+def _embed_text_len(embed: discord.Embed) -> int:
+    total = 0
+    total += len(embed.title or "")
+    total += len(embed.description or "")
+    total += len(getattr(embed.footer, "text", "") or "")
+
+    for field in embed.fields:
+        total += len(field.name or "")
+        total += len(field.value or "")
+
+    return total
+
+
+def _can_add_field(embed: discord.Embed, *, name: str, value: str) -> bool:
+    if len(name) > 256:
+        return False
+    if len(value) > 1024:
+        return False
+    if len(embed.fields) >= EMBED_MAX_FIELDS:
+        return False
+
+    return (_embed_text_len(embed) + len(name) + len(value)) <= EMBED_TOTAL_SOFT_LIMIT
+
+
+def _paginate_embeds(embeds: list[discord.Embed], footer_prefix: str) -> list[discord.Embed]:
+    if not embeds:
+        return embeds
+
+    total = len(embeds)
+    if total == 1:
+        return embeds
+
+    for i, embed in enumerate(embeds, start=1):
+        embed.set_footer(text=f"{footer_prefix} {i}/{total}")
+    return embeds
+
+
+def _build_summary_embeds(*, riot_id: str, discord_message: str) -> list[discord.Embed]:
+    summary_title, summary_lines = _parse_discord_message(discord_message)
+
+    embeds: list[discord.Embed] = []
+    current = discord.Embed(
+        title="Match Highlight",
+        description=f"```md\n{summary_title}\n```",
+        color=SUMMARY_COLOR,
+    )
+
+    if riot_id:
+        riot_field_value = f"`{riot_id}`"
+        if _can_add_field(current, name="Riot ID", value=riot_field_value):
+            current.add_field(name="Riot ID", value=riot_field_value, inline=False)
+        else:
+            embeds.append(current)
+            current = discord.Embed(title="Match Highlight (続き)", color=SUMMARY_COLOR)
+            current.add_field(name="Riot ID", value=riot_field_value, inline=False)
+
+    summary_text = "\n".join([f"• {line}" for line in summary_lines])
+    summary_chunks = _chunk_text(summary_text, EMBED_FIELD_VALUE_LIMIT)
+
+    for i, chunk in enumerate(summary_chunks, start=1):
+        field_name = "試合サマリー" if i == 1 else f"試合サマリー (続き{i})"
+        if not _can_add_field(current, name=field_name, value=chunk):
+            embeds.append(current)
+            current = discord.Embed(title="Match Highlight (続き)", color=SUMMARY_COLOR)
+        current.add_field(name=field_name, value=chunk, inline=False)
+
+    if current.description or current.fields:
+        embeds.append(current)
+
+    return _paginate_embeds(embeds, "Summary")
+
+
+def _build_story_fallback_embeds(story_text: str) -> list[discord.Embed]:
+    """
+    LLM出力が崩れたときのフォールバック。
+    field ではなく description に分割して複数 embed にする。
+    """
+    raw_text = (story_text or "").strip() or "（生成結果が空でした）"
+    raw_chunks = _chunk_text(raw_text, EMBED_DESCRIPTION_LIMIT)
+
+    embeds: list[discord.Embed] = []
+    for i, chunk in enumerate(raw_chunks, start=1):
+        title = "ストーリー（フォールバック表示）" if i == 1 else "ストーリー（続き）"
+        embed = discord.Embed(
+            title=title,
+            description=chunk,
+            color=STORY_COLOR,
+        )
+        embeds.append(embed)
+
+    return _paginate_embeds(embeds, "Story")
+
+
+def _build_story_embeds(story_text: str) -> list[discord.Embed]:
+    parts = _parse_story_sections(story_text)
+    if len(parts) < 6:
+        return _build_story_fallback_embeds(story_text)
+
+    title_text = (parts[0] or "").strip() or "（タイトルなし）"
+    sections = [
+        ("30秒ダイジェスト", parts[1]),
+        ("前半", parts[2]),
+        ("後半", parts[3]),
+        ("MVPハイライト", parts[4]),
+        ("締め", parts[5]),
+    ]
+
+    embeds: list[discord.Embed] = []
+    current = discord.Embed(
+        title="ストーリー",
+        description=f"**{title_text}**",
+        color=STORY_COLOR,
+    )
+
+    for section_name, text in sections:
+        section_chunks = _chunk_text((text or "").strip() or "（空）", EMBED_FIELD_VALUE_LIMIT)
+
+        for idx, chunk in enumerate(section_chunks, start=1):
+            field_name = section_name if idx == 1 else f"{section_name} (続き{idx})"
+
+            if not _can_add_field(current, name=field_name, value=chunk):
+                embeds.append(current)
+                current = discord.Embed(
+                    title="ストーリー（続き）",
+                    color=STORY_COLOR,
+                )
+
+            current.add_field(name=field_name, value=chunk, inline=False)
+
+    if current.description or current.fields:
+        embeds.append(current)
+
+    return _paginate_embeds(embeds, "Story")
+
+
 async def run_match_highlight(
     *,
     interaction: discord.Interaction,
@@ -248,6 +381,12 @@ async def run_match_highlight(
 ):
     if not internal_api_key:
         return await interaction.followup.send("サーバー設定エラー: INTERNAL_API_KEY未設定", ephemeral=True)
+
+    progress_message = await interaction.followup.send(
+        "ハイライトを生成中です。しばらくお待ちください。",
+        ephemeral=final_ephemeral,
+        wait=True,
+    )
 
     status_code, j, text = await post_json(
         "/internal/val/match-highlight",
@@ -259,11 +398,13 @@ async def run_match_highlight(
         output = _format_raw_response(status_code, j, text)
         logger.info("match-highlight error response:\n%s", output)
         wrapped = f"```json\n{output[:1700]}\n```"
+        await _safe_delete_message(progress_message)
         return await interaction.followup.send(wrapped, ephemeral=True)
 
     if not (j or {}).get("ok", False):
         output = _format_business_error(j or {})
         logger.info("match-highlight business error response:\n%s", output)
+        await _safe_delete_message(progress_message)
         for chunk in _split_message(output):
             await interaction.followup.send(chunk, ephemeral=final_ephemeral)
         return
@@ -271,27 +412,20 @@ async def run_match_highlight(
     discord_message = (j or {}).get("discord_message", "")
     llm_payload = (j or {}).get("llm_payload")
     riot_id = (j or {}).get("riotId", "")
-    region = (j or {}).get("region", "")
-    game_start_at_jst = (j or {}).get("gameStartAtJST")
-
-    summary_block = _format_discord_message(discord_message)
-    meta_block = _format_meta_info(riot_id, region, game_start_at_jst)
 
     # LLM生成はスレッドで
     raw_story = await asyncio.to_thread(_generate_story_from_payload, llm_payload)
 
-    # 見出し付け＆7パート整形はアプリ側で確実に
-    story_block = _format_story_for_discord(raw_story)
-
-    output = (
-        "## 1) Match Highlight\n"
-        f"{meta_block}\n"
-        f"{summary_block}\n\n"
-        "## 2) AIストーリー\n"
-        f"{story_block}"
+    summary_embeds = _build_summary_embeds(
+        riot_id=riot_id,
+        discord_message=discord_message,
     )
+    story_embeds = _build_story_embeds(raw_story)
 
-    logger.info("match-highlight formatted response:\n%s", output)
+    await _safe_delete_message(progress_message)
 
-    for chunk in _split_message(output):
-        await interaction.followup.send(chunk, ephemeral=final_ephemeral)
+    for embed in summary_embeds:
+        await interaction.followup.send(embed=embed, ephemeral=final_ephemeral)
+
+    for embed in story_embeds:
+        await interaction.followup.send(embed=embed, ephemeral=final_ephemeral)
