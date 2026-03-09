@@ -1,4 +1,6 @@
-# commands/riotcon.py  (あなたが貼ってくれた側)
+# commands/riotcon.py
+import asyncio
+import json
 import os
 
 import aiohttp
@@ -24,23 +26,75 @@ class LinkView(discord.ui.View):
         )
 
 
-async def _post_json(path: str, payload: dict, timeout_sec: int = 15):
+def _format_api_error(status_code: int, json_body: dict, raw_text: str) -> str:
+    message = (json_body or {}).get("message")
+    error_code = (json_body or {}).get("error")
+
+    parts = [f"status={status_code}"]
+    if error_code:
+        parts.append(f"error={error_code}")
+    if message:
+        parts.append(str(message))
+    elif raw_text:
+        parts.append(raw_text[:300])
+    else:
+        parts.append("API応答の取得に失敗しました。")
+
+    return "\n".join(parts)
+
+
+async def _post_json(path: str, payload: dict, timeout_sec: int = 15) -> tuple[int, dict, str]:
     if not INTERNAL_API_KEY:
         raise RuntimeError("INTERNAL_API_KEY未設定")
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{API_BASE_URL}{path}",
-            json=payload,
-            headers={"X-Internal-API-Key": INTERNAL_API_KEY},
-            timeout=aiohttp.ClientTimeout(total=timeout_sec),
-        ) as resp:
-            text = await resp.text()
-            try:
-                j = await resp.json()
-            except Exception:
-                j = {"raw": text[:300]}
-            return resp.status, j, text
+    try:
+        timeout = aiohttp.ClientTimeout(total=timeout_sec)
+
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(
+                f"{API_BASE_URL}{path}",
+                json=payload,
+                headers={"X-Internal-API-Key": INTERNAL_API_KEY},
+            ) as resp:
+                text = await resp.text()
+                try:
+                    j = json.loads(text) if text else {}
+                except json.JSONDecodeError:
+                    j = {"raw": text[:300]}
+                return resp.status, j, text
+
+    except asyncio.TimeoutError:
+        return (
+            503,
+            {
+                "error": "internal_api_timeout",
+                "message": "内部APIがタイムアウトしました。",
+                "path": path,
+            },
+            "",
+        )
+
+    except aiohttp.ClientError:
+        return (
+            503,
+            {
+                "error": "internal_api_unreachable",
+                "message": "内部APIに接続できませんでした。",
+                "path": path,
+            },
+            "",
+        )
+
+    except Exception:
+        return (
+            500,
+            {
+                "error": "internal_api_unknown_error",
+                "message": "内部API呼び出し中に予期しないエラーが発生しました。",
+                "path": path,
+            },
+            "",
+        )
 
 
 async def _send_link_prompt(interaction: discord.Interaction, *, use_followup: bool = False):
@@ -52,7 +106,7 @@ async def _send_link_prompt(interaction: discord.Interaction, *, use_followup: b
 
     status_code, j, text = await _post_json("/internal/rso/create-auth-url", payload, timeout_sec=10)
     if status_code != 200:
-        msg = f"連携開始に失敗しました: {status_code}\n{text[:300]}"
+        msg = f"連携開始に失敗しました。\n{_format_api_error(status_code, j, text)}"
         if use_followup:
             await interaction.followup.send(msg, ephemeral=True)
         else:
@@ -109,14 +163,17 @@ async def riotcon_command(interaction: discord.Interaction):
     if not INTERNAL_API_KEY:
         return await interaction.response.send_message("サーバー設定エラー: INTERNAL_API_KEY未設定", ephemeral=True)
 
-    status_code, j, _ = await _post_json(
+    status_code, j, text = await _post_json(
         "/internal/rso/status",
         {"discord_user_id": str(interaction.user.id)},
         timeout_sec=10,
     )
 
     if status_code != 200:
-        return await interaction.response.send_message(f"エラー(status): {status_code} {j}", ephemeral=True)
+        return await interaction.response.send_message(
+            f"エラー:\n{_format_api_error(status_code, j, text)}",
+            ephemeral=True,
+        )
 
     if not j.get("linked"):
         return await _send_link_prompt(interaction, use_followup=False)
@@ -126,7 +183,11 @@ async def riotcon_command(interaction: discord.Interaction):
         description=_build_linked_status_text(j),
         color=discord.Color.blurple(),
     )
-    embed.add_field(name="直近一試合のハイライト", value="試合サマリーを整形しストーリーを表示します。（コンペのみ）※この機能は開発段階です", inline=False)
+    embed.add_field(
+        name="直近一試合のハイライト",
+        value="試合サマリーを整形しストーリーを表示します。（コンペのみ）※この機能は開発段階です",
+        inline=False,
+    )
 
     view = RiotConMenuView(owner_id=interaction.user.id)
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
