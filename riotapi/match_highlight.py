@@ -492,11 +492,21 @@ def _build_summary_embeds(*, riot_id: str, discord_message: str) -> list[discord
             current.add_field(name="Riot ID", value=riot_field_value, inline=False)
 
     for i, block in enumerate(summary_blocks, start=1):
-        field_name = "試合メモ" if i == 1 else f"試合メモ {i}"
-        if not _can_add_field(current, name=field_name, value=block):
-            embeds.append(current)
-            current = _new_embed("🎯 Match Highlight（続き）", color=SUMMARY_COLOR)
-        current.add_field(name=field_name, value=block, inline=False)
+        block_chunks = _chunk_text(block, EMBED_FIELD_VALUE_LIMIT)
+
+        for j, chunk in enumerate(block_chunks, start=1):
+            if i == 1 and j == 1:
+                field_name = "試合メモ"
+            elif j == 1:
+                field_name = f"試合メモ {i}"
+            else:
+                field_name = f"試合メモ {i} (続き{j})"
+
+            if not _can_add_field(current, name=field_name, value=chunk):
+                embeds.append(current)
+                current = _new_embed("🎯 Match Highlight（続き）", color=SUMMARY_COLOR)
+
+            current.add_field(name=field_name, value=chunk, inline=False)
 
     if current.description or current.fields:
         embeds.append(current)
