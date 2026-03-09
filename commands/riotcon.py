@@ -9,11 +9,11 @@ from discord import app_commands
 from core.interaction_utils import ExpiringOwnerView
 from riotapi import run_match_highlight
 
-DEFAULT_API_BASE_URL = "http://api:8000"
-
-
 def _get_api_base_url() -> str:
-    return os.getenv("API_BASE_URL", DEFAULT_API_BASE_URL).rstrip("/")
+    value = os.getenv("API_BASE_URL")
+    if not value:
+        raise RuntimeError("API_BASE_URL未設定")
+    return value.rstrip("/")
 
 
 def _get_internal_api_key() -> str | None:
