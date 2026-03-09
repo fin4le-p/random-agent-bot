@@ -1,4 +1,3 @@
-# riotapi.py
 import asyncio
 import json
 import logging
@@ -13,9 +12,7 @@ from openai import OpenAI, APIError, APITimeoutError, BadRequestError, RateLimit
 PostJsonFunc = Callable[[str, dict, int], Awaitable[tuple[int, dict, str]]]
 logger = logging.getLogger(__name__)
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-MATCH_HIGHLIGHT_MODEL = os.getenv("MATCH_HIGHLIGHT_MODEL", "gpt-5-mini")
-openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+DEFAULT_MATCH_HIGHLIGHT_MODEL = "gpt-5-mini"
 
 # --- Discord embed safe limits ---
 EMBED_FIELD_VALUE_LIMIT = 1000          # Discord field value max=1024
@@ -76,6 +73,15 @@ STORY_PROMPT = """あなたはValorant配信者向けの「試合ストーリー
 以下のJSONだけを根拠に書いてください："""
 
 
+def _get_match_highlight_model() -> str:
+    return os.getenv("MATCH_HIGHLIGHT_MODEL", DEFAULT_MATCH_HIGHLIGHT_MODEL)
+
+
+def _get_openai_client() -> OpenAI | None:
+    api_key = os.getenv("OPENAI_API_KEY")
+    return OpenAI(api_key=api_key) if api_key else None
+
+
 def _format_raw_response(status_code: int, json_body: dict, raw_text: str) -> str:
     if json_body and "raw" not in json_body:
         body_text = json.dumps(json_body, ensure_ascii=False)
@@ -126,6 +132,8 @@ def _parse_story_sections(story_text: str) -> list[str]:
 def _generate_story_from_payload(llm_payload) -> str:
     if not llm_payload:
         return "（llm_payload がないため生成できませんでした）"
+
+    openai_client = _get_openai_client()
     if not openai_client:
         return "（OPENAI_API_KEY 未設定のため生成できませんでした）"
 
@@ -133,7 +141,7 @@ def _generate_story_from_payload(llm_payload) -> str:
 
     try:
         response = openai_client.responses.create(
-            model=MATCH_HIGHLIGHT_MODEL,
+            model=_get_match_highlight_model(),
             input=[
                 {"role": "system", "content": STORY_PROMPT},
                 {
@@ -621,9 +629,6 @@ def _build_story_embeds(story_text: str) -> list[discord.Embed]:
     close_text = (parts[5] or "").strip() or "（空）"
 
     embeds: list[discord.Embed] = []
-    embeds.extend(_build_summary_embeds(riot_id="", discord_message=""))  # placeholder avoided below
-    embeds.clear()
-
     embeds.extend(_build_story_intro_embeds(title_text, digest_text))
     embeds.extend(_build_flow_embeds("前半の流れ", first_half_text, emoji="🟦"))
     embeds.extend(_build_flow_embeds("後半の流れ", second_half_text, emoji="🟥"))
