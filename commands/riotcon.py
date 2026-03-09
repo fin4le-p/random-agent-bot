@@ -1,4 +1,3 @@
-# commands/riotcon.py
 import asyncio
 import json
 import os
@@ -10,8 +9,15 @@ from discord import app_commands
 from core.interaction_utils import ExpiringOwnerView
 from riotapi import run_match_highlight
 
-API_BASE_URL = os.getenv("API_BASE_URL", "http://api:8000").rstrip("/")
-INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY")
+DEFAULT_API_BASE_URL = "http://api:8000"
+
+
+def _get_api_base_url() -> str:
+    return os.getenv("API_BASE_URL", DEFAULT_API_BASE_URL).rstrip("/")
+
+
+def _get_internal_api_key() -> str | None:
+    return os.getenv("INTERNAL_API_KEY")
 
 
 class LinkView(discord.ui.View):
@@ -44,7 +50,8 @@ def _format_api_error(status_code: int, json_body: dict, raw_text: str) -> str:
 
 
 async def _post_json(path: str, payload: dict, timeout_sec: int = 15) -> tuple[int, dict, str]:
-    if not INTERNAL_API_KEY:
+    internal_api_key = _get_internal_api_key()
+    if not internal_api_key:
         raise RuntimeError("INTERNAL_API_KEY未設定")
 
     try:
@@ -52,9 +59,9 @@ async def _post_json(path: str, payload: dict, timeout_sec: int = 15) -> tuple[i
 
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(
-                f"{API_BASE_URL}{path}",
+                f"{_get_api_base_url()}{path}",
                 json=payload,
-                headers={"X-Internal-API-Key": INTERNAL_API_KEY},
+                headers={"X-Internal-API-Key": internal_api_key},
             ) as resp:
                 text = await resp.text()
                 try:
@@ -153,14 +160,14 @@ class RiotConMenuView(ExpiringOwnerView):
         await run_match_highlight(
             interaction=interaction,
             post_json=_post_json,
-            internal_api_key=INTERNAL_API_KEY,
+            internal_api_key=_get_internal_api_key(),
             final_ephemeral=False,
         )
 
 
 @app_commands.command(name="riotcon", description="Riot連携メニュー")
 async def riotcon_command(interaction: discord.Interaction):
-    if not INTERNAL_API_KEY:
+    if not _get_internal_api_key():
         return await interaction.response.send_message("サーバー設定エラー: INTERNAL_API_KEY未設定", ephemeral=True)
 
     status_code, j, text = await _post_json(
