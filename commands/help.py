@@ -24,5 +24,17 @@ async def help_command(interaction: discord.Interaction):
         value="AI戦術メニュー（通常 / ハード）",
         inline=False,
     )
+    embed.add_field(
+        name="/riotcon",
+        value="Riot連携メニュー（未連携なら連携案内、連携済みなら機能選択）",
+        inline=False,
+    )
     embed.set_footer(text="各コマンドはスラッシュで実行してください。")
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    view = discord.ui.View()
+    view.add_item(
+        discord.ui.Button(
+            label="詳細はHPをご確認ください",
+            url="https://random-agent.nakano6.com/",
+        )
+    )
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=False)

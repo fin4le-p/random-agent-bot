@@ -1,5 +1,6 @@
 import os
 import asyncio
+import logging
 
 import discord
 from discord.ext import commands
@@ -9,7 +10,12 @@ from commands.random import random_command
 from commands.punish import punish_command
 from commands.tactic import tactic_command
 from commands.help import help_command
-from commands.vs import vs_group
+from commands.riotcon import riotcon_command
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
 
 load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
@@ -35,6 +41,8 @@ async def setup_hook():
     print("tactic command registered successfully.")
     bot.tree.add_command(help_command)
     print("help command registered successfully.")
+    bot.tree.add_command(riotcon_command)
+    print("riotcon command registered successfully.")
 
 bot.setup_hook = setup_hook
 
