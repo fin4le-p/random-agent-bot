@@ -80,6 +80,7 @@ class AgentSelectViewJa(ExpiringOwnerView):
             owner_id=owner_id,
             timeout=timeout,
             single_use=False,
+            delete_on_use=False,
             delete_on_timeout=True,
         )
         self.add_item(AgentSelectJa("デフォルト", "1", self))
