@@ -19,6 +19,9 @@ class TacticModelSelectView(ExpiringOwnerView):
         self.hard = hard
 
     async def _run(self, interaction: discord.Interaction, model_id: int):
+        if await self.reject_if_consumed(interaction):
+            return
+
         await interaction.response.defer(thinking=True)
 
         try:
@@ -97,6 +100,9 @@ class TacticModeView(ExpiringOwnerView):
 
     @discord.ui.button(label="通常", style=discord.ButtonStyle.primary)
     async def normal_button(self, interaction: discord.Interaction, _: discord.ui.Button):
+        if await self.reject_if_consumed(interaction):
+            return
+
         await interaction.response.send_modal(
             TacticContentModal(owner_id=interaction.user.id, hard=False)
         )
@@ -104,6 +110,9 @@ class TacticModeView(ExpiringOwnerView):
 
     @discord.ui.button(label="ハード", style=discord.ButtonStyle.danger)
     async def hard_button(self, interaction: discord.Interaction, _: discord.ui.Button):
+        if await self.reject_if_consumed(interaction):
+            return
+
         await interaction.response.send_modal(
             TacticContentModal(owner_id=interaction.user.id, hard=True)
         )

@@ -120,17 +120,37 @@ class ExpiringOwnerView(discord.ui.View):
             )
             return False
 
-        if not self.single_use:
-            return True
-
-        if self._consumed:
+        if self.single_use and self._consumed:
             await interaction.response.send_message(
                 "この選択肢はすでに確定しています。",
                 ephemeral=True,
             )
             return False
 
+        return True
+
+    def try_consume(self) -> bool:
+        if not self.single_use:
+            return True
+        if self._consumed:
+            return False
         self._consumed = True
+        return True
+
+    async def reject_if_consumed(self, interaction: discord.Interaction) -> bool:
+        if self.try_consume():
+            return False
+
+        if interaction.response.is_done():
+            await interaction.followup.send(
+                "この選択肢はすでに確定しています。",
+                ephemeral=True,
+            )
+        else:
+            await interaction.response.send_message(
+                "この選択肢はすでに確定しています。",
+                ephemeral=True,
+            )
         return True
 
     def _disable_children(self) -> None:

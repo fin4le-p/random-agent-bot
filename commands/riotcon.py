@@ -165,6 +165,9 @@ class RiotConMenuView(ExpiringOwnerView):
 
     @discord.ui.button(label="直前の試合ハイライト", style=discord.ButtonStyle.primary)
     async def match_highlight_button(self, interaction: discord.Interaction, _: discord.ui.Button):
+        if await self.reject_if_consumed(interaction):
+            return
+
         await interaction.response.defer(ephemeral=True)
         await self.disable_and_stop()
 

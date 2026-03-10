@@ -137,6 +137,9 @@ class RandomMenuView(ExpiringOwnerView):
 
     @discord.ui.button(label="Agent", style=discord.ButtonStyle.primary)
     async def agent_button(self, interaction: discord.Interaction, _: discord.ui.Button):
+        if await self.reject_if_consumed(interaction):
+            return
+
         embed = discord.Embed(
             title="モードを選択してください",
             description=(
@@ -163,6 +166,9 @@ class RandomMenuView(ExpiringOwnerView):
                 "マップ一覧が空、または読み込みに失敗しました。`maps.json` を確認してください。"
             )
 
+        if await self.reject_if_consumed(interaction):
+            return
+
         await interaction.response.send_message(embed=embed)
         await self.disable_and_stop()
 
@@ -183,6 +189,9 @@ class RandomMenuView(ExpiringOwnerView):
                 "VC に人がいません。（Bot は除外しています）",
                 ephemeral=True,
             )
+
+        if await self.reject_if_consumed(interaction):
+            return
 
         embeds = _role_shuffle_embeds(members)
         await interaction.response.send_message(embed=embeds[0])
@@ -209,6 +218,9 @@ class RandomMenuView(ExpiringOwnerView):
                 ephemeral=True,
             )
 
+        if await self.reject_if_consumed(interaction):
+            return
+
         await interaction.response.send_message(embed=_teams_embed(members))
         await self.disable_and_stop()
 
@@ -220,6 +232,9 @@ class RandomMenuView(ExpiringOwnerView):
                 "エージェント一覧が空です。`agents.json` を確認してください。",
                 ephemeral=True,
             )
+
+        if await self.reject_if_consumed(interaction):
+            return
 
         banned_list = "\n".join(f"- {name}" for name in banned)
         embed = discord.Embed(

@@ -72,6 +72,9 @@ class PunishModelSelectView(ExpiringOwnerView):
         self.hard = hard
 
     async def _run(self, interaction: discord.Interaction, model_id: int):
+        if await self.reject_if_consumed(interaction):
+            return
+
         await interaction.response.defer(thinking=True)
 
         try:
@@ -172,6 +175,9 @@ class PunishMenuView(ExpiringOwnerView):
                 ephemeral=True,
             )
 
+        if await self.reject_if_consumed(interaction):
+            return
+
         await interaction.response.send_message(embed=embeds[0])
         for embed in embeds[1:]:
             await interaction.followup.send(embed=embed)
@@ -180,6 +186,9 @@ class PunishMenuView(ExpiringOwnerView):
 
     @discord.ui.button(label="AI罰ゲーム", style=discord.ButtonStyle.secondary)
     async def ai_button(self, interaction: discord.Interaction, _: discord.ui.Button):
+        if await self.reject_if_consumed(interaction):
+            return
+
         await interaction.response.send_modal(
             PunishContentModal(owner_id=interaction.user.id, hard=False)
         )
@@ -187,6 +196,9 @@ class PunishMenuView(ExpiringOwnerView):
 
     @discord.ui.button(label="AI罰ゲーム(HARD)", style=discord.ButtonStyle.danger)
     async def ai_hard_button(self, interaction: discord.Interaction, _: discord.ui.Button):
+        if await self.reject_if_consumed(interaction):
+            return
+
         await interaction.response.send_modal(
             PunishContentModal(owner_id=interaction.user.id, hard=True)
         )

@@ -58,6 +58,7 @@ async def setup_hook() -> None:
             logger.info("Commands globally synced: %s command(s)", len(synced))
     except Exception:
         logger.exception("Command sync failed during setup_hook().")
+        raise
 
 
 bot.setup_hook = setup_hook
