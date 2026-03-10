@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-DEV_GUILD_ID = os.getenv("DEV_GUILD_ID")
 
 if not DISCORD_TOKEN:
     raise SystemExit("Error: DISCORD_TOKEN is not set in .env file.")
@@ -49,13 +48,8 @@ async def setup_hook() -> None:
         logger.warning("agents.json validation: %s", warning)
 
     try:
-        if DEV_GUILD_ID:
-            guild = discord.Object(id=int(DEV_GUILD_ID))
-            synced = await bot.tree.sync(guild=guild)
-            logger.info("Commands synced to DEV guild: %s command(s)", len(synced))
-        else:
-            synced = await bot.tree.sync()
-            logger.info("Commands globally synced: %s command(s)", len(synced))
+        synced = await bot.tree.sync()
+        logger.info("Commands globally synced: %s command(s)", len(synced))
     except Exception:
         logger.exception("Command sync failed during setup_hook().")
         raise
