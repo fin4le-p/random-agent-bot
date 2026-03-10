@@ -215,5 +215,5 @@ async def riotcon_command(interaction: discord.Interaction):
     )
 
     view = RiotConMenuView(owner_id=interaction.user.id)
-    await interaction.followup.send(embed=embed, view=view, ephemeral=True)
-    await view.bind_to_response(interaction)
+    message = await interaction.followup.send(embed=embed, view=view, ephemeral=True, wait=True)
+    view.message = message
