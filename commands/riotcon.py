@@ -187,19 +187,21 @@ async def riotcon_command(interaction: discord.Interaction):
             ephemeral=True,
         )
 
+    await interaction.response.defer(ephemeral=True)
+
     status_code, j, text = await _post_json(
         "/internal/rso/status",
         {"discord_user_id": str(interaction.user.id)},
         timeout_sec=10,
     )
     if status_code != 200:
-        return await interaction.response.send_message(
+        return await interaction.followup.send(
             f"エラー:\n{_format_api_error(status_code, j, text)}",
             ephemeral=True,
         )
 
     if not j.get("linked"):
-        return await _send_link_prompt(interaction, use_followup=False)
+        return await _send_link_prompt(interaction, use_followup=True)
 
     embed = discord.Embed(
         title="Riot連携機能",
@@ -213,5 +215,5 @@ async def riotcon_command(interaction: discord.Interaction):
     )
 
     view = RiotConMenuView(owner_id=interaction.user.id)
-    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+    await interaction.followup.send(embed=embed, view=view, ephemeral=True)
     await view.bind_to_response(interaction)
