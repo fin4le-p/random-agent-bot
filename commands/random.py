@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import random
 
@@ -6,8 +7,15 @@ import discord
 from discord import app_commands
 
 from core.agents_data import get_ban_agents
-from core.interaction_utils import ExpiringOwnerView, bot_add_prompt_text, is_bot_member_in_guild
+from core.interaction_utils import (
+    ExpiringOwnerView,
+    bot_add_prompt_text,
+    build_embeds_from_fields,
+    is_bot_member_in_guild,
+)
 from core.views import AgentSelectViewJa
+
+logger = logging.getLogger(__name__)
 
 MAP_FILE = os.getenv("MAP_FILE", "maps.json")
 
@@ -18,8 +26,8 @@ def _load_json_list(path: str, key: str) -> list[str]:
             data = json.load(f)
         items = data.get(key, [])
         return [str(x) for x in items if isinstance(x, str)]
-    except Exception as e:
-        print(f"Failed to load {key} from {path}: {e}")
+    except Exception:
+        logger.exception("Failed to load %s from %s", key, path)
         return []
 
 
@@ -27,6 +35,7 @@ def _random_map_embed() -> discord.Embed | None:
     maps = _load_json_list(MAP_FILE, "maps")
     if not maps:
         return None
+
     chosen = random.choice(maps)
     return discord.Embed(
         title="本日のマップは…",
@@ -35,7 +44,7 @@ def _random_map_embed() -> discord.Embed | None:
     )
 
 
-def _role_shuffle_embed(members: list[discord.Member]) -> discord.Embed:
+def _role_shuffle_embeds(members: list[discord.Member]) -> list[discord.Embed]:
     role_defs = [
         {
             "title": "IGL（作戦コール担当）",
@@ -59,36 +68,48 @@ def _role_shuffle_embed(members: list[discord.Member]) -> discord.Embed:
         },
     ]
 
-    random.shuffle(members)
-    embed = discord.Embed(
+    shuffled = members[:]
+    random.shuffle(shuffled)
+
+    fields: list[tuple[str, str, bool]] = []
+    max_roles = min(5, len(shuffled))
+
+    for i in range(max_roles):
+        member = shuffled[i]
+        role_def = role_defs[i]
+        fields.append(
+            (
+                role_def["title"],
+                role_def["sentence"].format(name=member.display_name),
+                False,
+            )
+        )
+
+    if len(shuffled) > 5:
+        for member in shuffled[5:]:
+            fields.append(
+                (
+                    member.display_name,
+                    "この試合は役職なし（自由枠）です。好きに暴れてください。",
+                    False,
+                )
+            )
+
+    return build_embeds_from_fields(
         title="役職シャッフル",
         description="この試合の役職担当は以下の通りです！",
         color=discord.Color.blue(),
+        fields=fields,
     )
-    max_roles = min(5, len(members))
-    for i in range(max_roles):
-        member = members[i]
-        role_def = role_defs[i]
-        embed.add_field(
-            name=role_def["title"],
-            value=role_def["sentence"].format(name=member.display_name),
-            inline=False,
-        )
-    if len(members) > 5:
-        for member in members[5:]:
-            embed.add_field(
-                name=member.display_name,
-                value="この試合は役職なし（自由枠）です。好きに暴れてください。",
-                inline=False,
-            )
-    return embed
 
 
 def _teams_embed(members: list[discord.Member]) -> discord.Embed:
-    random.shuffle(members)
-    mid = len(members) // 2
-    team_a = members[:mid]
-    team_b = members[mid:]
+    shuffled = members[:]
+    random.shuffle(shuffled)
+    mid = len(shuffled) // 2
+    team_a = shuffled[:mid]
+    team_b = shuffled[mid:]
+
     embed = discord.Embed(
         title="チーム分けランダム",
         description="VC メンバーを 2 チームにランダムで分けました。",
@@ -110,7 +131,7 @@ class RandomMenuView(ExpiringOwnerView):
         super().__init__(
             owner_id=owner_id,
             timeout=300,
-            delete_on_use=True,
+            delete_on_use=False,
             delete_on_timeout=True,
         )
 
@@ -128,9 +149,11 @@ class RandomMenuView(ExpiringOwnerView):
             ),
             color=discord.Color.blue(),
         )
+
         view = AgentSelectViewJa(owner_id=interaction.user.id)
         await interaction.response.send_message(embed=embed, view=view)
         await view.bind_to_response(interaction)
+        await self.disable_and_stop()
 
     @discord.ui.button(label="Map", style=discord.ButtonStyle.success)
     async def map_button(self, interaction: discord.Interaction, _: discord.ui.Button):
@@ -139,45 +162,65 @@ class RandomMenuView(ExpiringOwnerView):
             return await interaction.response.send_message(
                 "マップ一覧が空、または読み込みに失敗しました。`maps.json` を確認してください。"
             )
+
         await interaction.response.send_message(embed=embed)
+        await self.disable_and_stop()
 
     @discord.ui.button(label="Role Shuffle", style=discord.ButtonStyle.secondary)
     async def role_button(self, interaction: discord.Interaction, _: discord.ui.Button):
         if not is_bot_member_in_guild(interaction):
             return await interaction.response.send_message(bot_add_prompt_text(), ephemeral=True)
+
         if not (interaction.user.voice and interaction.user.voice.channel):
             return await interaction.response.send_message(
-                "VC に参加してから実行してください。", ephemeral=True
+                "VC に参加してから実行してください。",
+                ephemeral=True,
             )
+
         members = [m for m in interaction.user.voice.channel.members if not m.bot]
         if not members:
             return await interaction.response.send_message(
-                "VC に人がいません。（Bot は除外しています）", ephemeral=True
+                "VC に人がいません。（Bot は除外しています）",
+                ephemeral=True,
             )
-        await interaction.response.send_message(embed=_role_shuffle_embed(members))
+
+        embeds = _role_shuffle_embeds(members)
+        await interaction.response.send_message(embed=embeds[0])
+        for embed in embeds[1:]:
+            await interaction.followup.send(embed=embed)
+
+        await self.disable_and_stop()
 
     @discord.ui.button(label="Teams", style=discord.ButtonStyle.secondary)
     async def teams_button(self, interaction: discord.Interaction, _: discord.ui.Button):
         if not is_bot_member_in_guild(interaction):
             return await interaction.response.send_message(bot_add_prompt_text(), ephemeral=True)
+
         if not (interaction.user.voice and interaction.user.voice.channel):
             return await interaction.response.send_message(
-                "VC に参加してから実行してください。", ephemeral=True
+                "VC に参加してから実行してください。",
+                ephemeral=True,
             )
+
         members = [m for m in interaction.user.voice.channel.members if not m.bot]
         if len(members) < 2:
             return await interaction.response.send_message(
-                "チーム分けするには最低 2 人必要です。", ephemeral=True
+                "チーム分けするには最低 2 人必要です。",
+                ephemeral=True,
             )
+
         await interaction.response.send_message(embed=_teams_embed(members))
+        await self.disable_and_stop()
 
     @discord.ui.button(label="BAN", style=discord.ButtonStyle.danger)
     async def ban_button(self, interaction: discord.Interaction, _: discord.ui.Button):
         banned = get_ban_agents(3)
         if not banned:
             return await interaction.response.send_message(
-                "エージェント一覧が空です。`agents.json` を確認してください。", ephemeral=True
+                "エージェント一覧が空です。`agents.json` を確認してください。",
+                ephemeral=True,
             )
+
         banned_list = "\n".join(f"- {name}" for name in banned)
         embed = discord.Embed(
             title="ピック禁止祭（BAN ルーレット）",
@@ -185,6 +228,7 @@ class RandomMenuView(ExpiringOwnerView):
             color=discord.Color.red(),
         )
         await interaction.response.send_message(embed=embed)
+        await self.disable_and_stop()
 
 
 @app_commands.command(name="random", description="ランダムで選択してくれる機能たち")
@@ -204,6 +248,7 @@ async def random_command(interaction: discord.Interaction):
         value="Appディレクトリからの追加だとVC系機能は使えません。Botとしてサーバーに追加してください。",
         inline=False,
     )
+
     view = RandomMenuView(owner_id=interaction.user.id)
     await interaction.response.send_message(embed=embed, view=view)
     await view.bind_to_response(interaction)

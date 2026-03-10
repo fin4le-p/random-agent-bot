@@ -1,14 +1,10 @@
+import asyncio
+
 import discord
 from discord import app_commands
 
-from core.ai_engine import generate
+from core.ai_engine import MODEL_LABELS, generate
 from core.interaction_utils import ExpiringOwnerView
-
-MODEL_LABELS = {
-    1: "ID1: 早いが不安定（llama）",
-    2: "ID2: 速くてやや高品質（gpt-oss）",
-    3: "ID3: 遅いが安定（gpt）",
-}
 
 
 class TacticModelSelectView(ExpiringOwnerView):
@@ -16,7 +12,7 @@ class TacticModelSelectView(ExpiringOwnerView):
         super().__init__(
             owner_id=owner_id,
             timeout=300,
-            delete_on_use=True,
+            delete_on_use=False,
             delete_on_timeout=True,
         )
         self.content = content
@@ -24,21 +20,22 @@ class TacticModelSelectView(ExpiringOwnerView):
 
     async def _run(self, interaction: discord.Interaction, model_id: int):
         await interaction.response.defer(thinking=True)
+
         try:
-            result = generate("tactic", self.hard, model_id, self.content)
+            result = await asyncio.to_thread(generate, "tactic", self.hard, model_id, self.content)
         except Exception as exc:
             return await interaction.followup.send(f"エラー: {exc}")
+
         title = "🧠 Tactic(HARD)" if self.hard else "🧠 Tactic"
-        embed = discord.Embed(title=title, description=result, color=discord.Color.dark_green())
+        embed = discord.Embed(
+            title=title,
+            description=result,
+            color=discord.Color.dark_green(),
+        )
         embed.set_footer(text=f"model={model_id}")
-        self._disable_children()
-        try:
-            if interaction.message:
-                await interaction.message.edit(view=self)
-        except Exception:
-            pass
-        self.stop()
+
         await interaction.followup.send(embed=embed)
+        await self.disable_and_stop()
 
     @discord.ui.button(label="1", style=discord.ButtonStyle.secondary)
     async def model_1(self, interaction: discord.Interaction, _: discord.ui.Button):
@@ -69,15 +66,22 @@ class TacticContentModal(discord.ui.Modal, title="戦術の内容を入力"):
 
     async def on_submit(self, interaction: discord.Interaction):
         mode_text = "HARD" if self.hard else "通常"
+
         embed = discord.Embed(
             title=f"tactic: {mode_text}",
             description="モデルIDを選択してください（1/2/3）。",
             color=discord.Color.blurple(),
         )
         embed.add_field(name="入力内容", value=str(self.content), inline=False)
+
         model_lines = "\n".join(f"{k}. {v}" for k, v in MODEL_LABELS.items())
         embed.add_field(name="モデル一覧", value=model_lines, inline=False)
-        view = TacticModelSelectView(owner_id=self.owner_id, content=str(self.content), hard=self.hard)
+
+        view = TacticModelSelectView(
+            owner_id=self.owner_id,
+            content=str(self.content),
+            hard=self.hard,
+        )
         await interaction.response.send_message(embed=embed, view=view)
         await view.bind_to_response(interaction)
 
@@ -87,17 +91,23 @@ class TacticModeView(ExpiringOwnerView):
         super().__init__(
             owner_id=owner_id,
             timeout=300,
-            delete_on_use=True,
+            delete_on_use=False,
             delete_on_timeout=True,
         )
 
     @discord.ui.button(label="通常", style=discord.ButtonStyle.primary)
     async def normal_button(self, interaction: discord.Interaction, _: discord.ui.Button):
-        await interaction.response.send_modal(TacticContentModal(owner_id=interaction.user.id, hard=False))
+        await interaction.response.send_modal(
+            TacticContentModal(owner_id=interaction.user.id, hard=False)
+        )
+        await self.disable_and_stop()
 
     @discord.ui.button(label="ハード", style=discord.ButtonStyle.danger)
     async def hard_button(self, interaction: discord.Interaction, _: discord.ui.Button):
-        await interaction.response.send_modal(TacticContentModal(owner_id=interaction.user.id, hard=True))
+        await interaction.response.send_modal(
+            TacticContentModal(owner_id=interaction.user.id, hard=True)
+        )
+        await self.disable_and_stop()
 
 
 @app_commands.command(name="tactic", description="AIによる戦術・作成を生成できます")
@@ -107,6 +117,7 @@ async def tactic_command(interaction: discord.Interaction):
         description="通常 or ハードを選択すると、内容入力→モデルID選択で生成します。",
         color=discord.Color.blurple(),
     )
+
     view = TacticModeView(owner_id=interaction.user.id)
     await interaction.response.send_message(embed=embed, view=view)
     await view.bind_to_response(interaction)

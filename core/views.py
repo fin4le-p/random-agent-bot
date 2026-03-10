@@ -1,6 +1,8 @@
+import random
+
 import discord
 
-from core.agents_data import get_default_agents, get_chaos_agents, get_hirano_agents
+from core.agents_data import get_chaos_agents, get_default_agents, get_hirano_agents
 from core.interaction_utils import ExpiringOwnerView
 
 
@@ -13,14 +15,18 @@ class AgentSelectJa(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer()
 
-        agents = []
+        agents: list[str] = []
         mode_title = ""
         color = discord.Color.default()
 
         if interaction.user.voice and interaction.user.voice.channel:
-            channel = interaction.user.voice.channel
-            members = channel.members
-            user_names = [member.display_name for member in members][:5]
+            members = [member for member in interaction.user.voice.channel.members if not member.bot]
+            picked_members = (
+                random.sample(members, k=min(5, len(members)))
+                if members
+                else []
+            )
+            user_names = [member.display_name for member in picked_members]
         else:
             user_names = []
 
@@ -40,13 +46,20 @@ class AgentSelectJa(discord.ui.Button):
             mode_title = "平野流モード"
             color = discord.Color.orange()
         else:
-            await interaction.response.send_message("無効なモードが選択されました。", ephemeral=True)
+            await interaction.followup.send("無効なモードが選択されました。", ephemeral=True)
+            return
+
+        if not agents:
+            await interaction.followup.send(
+                "エージェント一覧の読み込みに失敗したか、モードの条件を満たせませんでした。`agents.json` を確認してください。",
+                ephemeral=True,
+            )
             return
 
         embed = discord.Embed(
             title=mode_title,
             description=(
-                "ボイスチャンネルに 5 人以上いる場合は、その中から 5 人が自動で割り当てられます。\n"
+                "ボイスチャンネルに 5 人以上いる場合は、**Bot を除いた中からランダムで 5 人** を割り当てます。\n"
                 "見る専の人がいる場合は、見る専の人が自分で指名してあげましょう！"
             ),
             color=color,
@@ -57,17 +70,8 @@ class AgentSelectJa(discord.ui.Button):
             embed.add_field(name=player_name, value=agent_name, inline=False)
 
         embed.set_footer(text="注意：この構成は試合に勝つことを前提とした構成ではありません。")
-        self.parent_view._disable_children()
-        try:
-            await interaction.followup.edit_message(
-                message_id=interaction.message.id,
-                embed=embed,
-                view=self.parent_view,
-            )
-        except Exception as exc:
-            print(f"Error updating message: {exc}")
-            return
-        self.parent_view.stop()
+
+        await self.parent_view.disable_and_stop(embed=embed)
 
 
 class AgentSelectViewJa(ExpiringOwnerView):

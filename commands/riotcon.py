@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 
 import aiohttp
@@ -8,6 +9,9 @@ from discord import app_commands
 
 from core.interaction_utils import ExpiringOwnerView
 from riotapi import run_match_highlight
+
+logger = logging.getLogger(__name__)
+
 
 def _get_api_base_url() -> str:
     value = os.getenv("API_BASE_URL")
@@ -45,7 +49,6 @@ def _format_api_error(status_code: int, json_body: dict, raw_text: str) -> str:
         parts.append(raw_text[:300])
     else:
         parts.append("API応答の取得に失敗しました。")
-
     return "\n".join(parts)
 
 
@@ -56,7 +59,6 @@ async def _post_json(path: str, payload: dict, timeout_sec: int = 15) -> tuple[i
 
     try:
         timeout = aiohttp.ClientTimeout(total=timeout_sec)
-
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(
                 f"{_get_api_base_url()}{path}",
@@ -69,7 +71,6 @@ async def _post_json(path: str, payload: dict, timeout_sec: int = 15) -> tuple[i
                 except json.JSONDecodeError:
                     j = {"raw": text[:300]}
                 return resp.status, j, text
-
     except asyncio.TimeoutError:
         return (
             503,
@@ -80,7 +81,6 @@ async def _post_json(path: str, payload: dict, timeout_sec: int = 15) -> tuple[i
             },
             "",
         )
-
     except aiohttp.ClientError:
         return (
             503,
@@ -91,8 +91,8 @@ async def _post_json(path: str, payload: dict, timeout_sec: int = 15) -> tuple[i
             },
             "",
         )
-
     except Exception:
+        logger.exception("Unexpected internal API error. path=%s payload=%s", path, payload)
         return (
             500,
             {
@@ -120,16 +120,25 @@ async def _send_link_prompt(interaction: discord.Interaction, *, use_followup: b
             await interaction.response.send_message(msg, ephemeral=True)
         return
 
+    authorize_url = j.get("authorize_url")
+    if not authorize_url:
+        msg = "連携URLの生成結果に `authorize_url` が含まれていません。内部APIを確認してください。"
+        if use_followup:
+            await interaction.followup.send(msg, ephemeral=True)
+        else:
+            await interaction.response.send_message(msg, ephemeral=True)
+        return
+
     if use_followup:
         await interaction.followup.send(
             "↓このボタンからRiotにログインして連携してください。",
-            view=LinkView(j["authorize_url"]),
+            view=LinkView(authorize_url),
             ephemeral=True,
         )
     else:
         await interaction.response.send_message(
             "↓このボタンからRiotにログインして連携してください。",
-            view=LinkView(j["authorize_url"]),
+            view=LinkView(authorize_url),
             ephemeral=True,
         )
 
@@ -150,13 +159,15 @@ class RiotConMenuView(ExpiringOwnerView):
         super().__init__(
             owner_id=owner_id,
             timeout=300,
-            delete_on_use=True,
+            delete_on_use=False,
             delete_on_timeout=True,
         )
 
     @discord.ui.button(label="直前の試合ハイライト", style=discord.ButtonStyle.primary)
     async def match_highlight_button(self, interaction: discord.Interaction, _: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
+        await self.disable_and_stop()
+
         await run_match_highlight(
             interaction=interaction,
             post_json=_post_json,
@@ -168,14 +179,16 @@ class RiotConMenuView(ExpiringOwnerView):
 @app_commands.command(name="riotcon", description="Riot連携メニュー")
 async def riotcon_command(interaction: discord.Interaction):
     if not _get_internal_api_key():
-        return await interaction.response.send_message("サーバー設定エラー: INTERNAL_API_KEY未設定", ephemeral=True)
+        return await interaction.response.send_message(
+            "サーバー設定エラー: INTERNAL_API_KEY未設定",
+            ephemeral=True,
+        )
 
     status_code, j, text = await _post_json(
         "/internal/rso/status",
         {"discord_user_id": str(interaction.user.id)},
         timeout_sec=10,
     )
-
     if status_code != 200:
         return await interaction.response.send_message(
             f"エラー:\n{_format_api_error(status_code, j, text)}",
