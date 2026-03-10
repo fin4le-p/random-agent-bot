@@ -78,9 +78,17 @@ class PunishModelSelectView(ExpiringOwnerView):
         await interaction.response.defer(thinking=True)
 
         try:
-            result = await asyncio.to_thread(generate, "punish", self.hard, model_id, self.content)
+            result = await asyncio.to_thread(
+                generate,
+                "punish",
+                self.hard,
+                model_id,
+                self.content,
+            )
         except Exception as exc:
-            return await interaction.followup.send(f"エラー: {exc}")
+            await interaction.followup.send(f"エラー: {exc}", ephemeral=True)
+            await self.disable_and_stop()
+            return
 
         title = "🎯 Punish AI(HARD)" if self.hard else "🎯 Punish AI"
         embed = discord.Embed(
