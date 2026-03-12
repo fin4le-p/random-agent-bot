@@ -27,16 +27,19 @@ def bot_add_prompt_text() -> str:
     )
 
 
-def is_bot_member_in_guild(interaction: discord.Interaction) -> bool:
+async def is_bot_member_in_guild(interaction: discord.Interaction) -> bool:
     guild = interaction.guild
     bot_user = interaction.client.user
     if guild is None or bot_user is None:
         return False
-    # discord.py injects a synthetic "self member" for guild interactions, so
-    # guild.get_member(bot_user.id) can be truthy even for App Directory installs.
-    if hasattr(interaction, "is_guild_integration"):
-        return interaction.is_guild_integration()
-    return guild.get_member(bot_user.id) is not None
+    try:
+        await guild.fetch_member(bot_user.id)
+        return True
+    except (discord.NotFound, discord.Forbidden):
+        return False
+    except discord.HTTPException:
+        logger.exception("Failed to verify bot guild membership for guild_id=%s", guild.id)
+        return False
 
 
 def _estimate_embed_len(title: str | None, description: str | None, footer_text: str | None = None) -> int:

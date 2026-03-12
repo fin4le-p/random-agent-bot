@@ -11,7 +11,7 @@ from commands.punish import punish_command
 from commands.random import random_command
 from commands.riotcon import riotcon_command
 from commands.tactic import tactic_command
-from commands.tournament import tournament_command
+#from commands.tournament import tournament_command
 from core.agents_data import validate_agents_file
 
 logging.basicConfig(
@@ -42,7 +42,7 @@ async def setup_hook() -> None:
     bot.tree.add_command(tactic_command)
     bot.tree.add_command(help_command)
     bot.tree.add_command(riotcon_command)
-    bot.tree.add_command(tournament_command)
+    #bot.tree.add_command(tournament_command)
 
     logger.info("Slash commands registered.")
 
