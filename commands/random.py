@@ -174,7 +174,7 @@ class RandomMenuView(ExpiringOwnerView):
 
     @discord.ui.button(label="Role Shuffle", style=discord.ButtonStyle.secondary)
     async def role_button(self, interaction: discord.Interaction, _: discord.ui.Button):
-        if not is_bot_member_in_guild(interaction):
+        if not await is_bot_member_in_guild(interaction):
             return await interaction.response.send_message(bot_add_prompt_text(), ephemeral=True)
 
         if not (interaction.user.voice and interaction.user.voice.channel):
@@ -202,7 +202,7 @@ class RandomMenuView(ExpiringOwnerView):
 
     @discord.ui.button(label="Teams", style=discord.ButtonStyle.secondary)
     async def teams_button(self, interaction: discord.Interaction, _: discord.ui.Button):
-        if not is_bot_member_in_guild(interaction):
+        if not await is_bot_member_in_guild(interaction):
             return await interaction.response.send_message(bot_add_prompt_text(), ephemeral=True)
 
         if not (interaction.user.voice and interaction.user.voice.channel):
