@@ -10,7 +10,7 @@ from discord import app_commands
 from core.ai_engine import MODEL_LABELS, generate
 from core.interaction_utils import (
     ExpiringOwnerView,
-    bot_add_prompt_text,
+    bot_add_prompt_embed,
     build_embeds_from_fields,
     is_bot_member_in_guild,
 )
@@ -161,7 +161,7 @@ class PunishMenuView(ExpiringOwnerView):
     @discord.ui.button(label="VC罰ゲーム", style=discord.ButtonStyle.primary)
     async def vc_button(self, interaction: discord.Interaction, _: discord.ui.Button):
         if not await is_bot_member_in_guild(interaction):
-            return await interaction.response.send_message(bot_add_prompt_text(), ephemeral=True)
+            return await interaction.response.send_message(embed=bot_add_prompt_embed(), ephemeral=True)
 
         if not (interaction.user.voice and interaction.user.voice.channel):
             return await interaction.response.send_message(

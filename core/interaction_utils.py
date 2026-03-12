@@ -12,7 +12,7 @@ MAX_EMBED_TOTAL_CHARS = 6000
 SAFE_EMBED_TOTAL_CHARS = 5800
 
 
-def bot_add_prompt_text() -> str:
+def bot_add_prompt_embed() -> discord.Embed:
     invite_url = os.getenv("DISCORD_BOT_INVITE_URL") or (
         "https://discord.com/oauth2/authorize"
         "?client_id=1308611315878858762"
@@ -21,10 +21,17 @@ def bot_add_prompt_text() -> str:
         "&scope=bot+applications.commands"
     )
 
-    return (
-        "この機能は **Botとしてサーバーに追加** されていないと使えません。\n"
-        f"追加リンク: {invite_url}"
+    embed = discord.Embed(
+        title="Botの追加が必要です",
+        description=(
+            "この機能は **Botとしてサーバーに追加** されていないと使えません。\n"
+            "サーバー管理者に Bot の追加を依頼してください。"
+        ),
+        color=discord.Color.orange(),
     )
+    embed.add_field(name="追加リンク", value=f"[Botをサーバーに追加する]({invite_url})", inline=False)
+    embed.set_footer(text="App のみ追加では一部機能は利用できません")
+    return embed
 
 
 async def is_bot_member_in_guild(interaction: discord.Interaction) -> bool:
